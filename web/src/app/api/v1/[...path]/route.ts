@@ -19,8 +19,12 @@ import {
   verifyWebhook,
   reconcilePayment,
   manualPayment,
-  paymentConfiguration,
 } from "@/server/commerce";
+import {
+  paymentForOrder,
+  adminPaymentConfiguration,
+  savePaymentSettings,
+} from "@/server/payments";
 import {
   challenge,
   bearer,
@@ -130,7 +134,7 @@ async function handler(request: Request, context: Context) {
     }
     if (resource === "webhooks" && method === "POST") {
       const raw = await readBody(request);
-      verifyWebhook(id, raw, request.headers);
+      await verifyWebhook(id, raw, request.headers);
       const result = await reconcilePayment(id, raw);
       return json({ success: true, ...result });
     }
@@ -207,7 +211,7 @@ async function handler(request: Request, context: Context) {
             order.status === "PENDING" && order.expiresAt.getTime() < Date.now()
               ? "EXPIRED"
               : order.status,
-          payment: paymentConfiguration(),
+          payment: paymentForOrder(order),
         });
       if (action === "cancel" && method === "POST") {
         await serial(async (tx) => {
@@ -343,6 +347,10 @@ async function handler(request: Request, context: Context) {
       );
       if (method === "GET" && id === "overview")
         return json(await adminOverview());
+      if (id === "payment-settings" && method === "GET")
+        return json(await adminPaymentConfiguration());
+      if (id === "payment-settings" && method === "PATCH")
+        return json(await savePaymentSettings(user, await input()));
       if (method === "GET" && id === "users" && action && extra === "detail") {
         const target = await db.user.findUnique({
           where: { id: action },
@@ -377,7 +385,7 @@ async function handler(request: Request, context: Context) {
         const site = await db.setting.findUnique({ where: { key: "site" } });
         return json({
           site: site?.value,
-          payment: paymentConfiguration(),
+          payment: await adminPaymentConfiguration(),
           emailConfigured: !!env.SMTP_HOST,
           sub2apiConfigured:
             !!env.SUB2API_ADMIN_API_KEY || !!env.SUB2API_ADMIN_TOKEN,

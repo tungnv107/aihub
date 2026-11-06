@@ -4017,6 +4017,127 @@
           }
         }
       }
+    },
+    "/admin/payment-settings": {
+      "get": {
+        "summary": "Admin bank details and optional SePay readiness",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Unavailable"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Configure receiving bank and checkout; ADMIN only",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bankName": {
+                    "type": "string"
+                  },
+                  "bankBin": {
+                    "type": "string",
+                    "pattern": "^[0-9]{6}$"
+                  },
+                  "bankAccount": {
+                    "type": "string",
+                    "pattern": "^[0-9]{6,19}$"
+                  },
+                  "bankAccountName": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "sepayEnabled": {
+                    "type": "boolean"
+                  },
+                  "publicConsent": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "bankName",
+                  "bankBin",
+                  "bankAccount",
+                  "bankAccountName",
+                  "enabled",
+                  "publicConsent"
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

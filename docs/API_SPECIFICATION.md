@@ -40,6 +40,7 @@ Base: `/api/v1`. JSON UTF-8, lỗi `{ "error": { "code": "..." } }`. Cookie sess
 | POST | /admin/licenses/:id/extend | Admin; `{days,reason}`; đơn gia hạn 0 VND + job + audit |
 | POST/PATCH/DELETE | /admin/{documents,faqs,announcements,testimonials,categories}[/id] | Admin; Zod + audit |
 | GET/PATCH | /admin/settings | Trạng thái cấu hình và nội dung thương hiệu; không trả bí mật |
+| GET/PATCH | /admin/payment-settings | Chỉ Admin; tài khoản ngân hàng nhận tiền, bật chuyển khoản và SePay tùy chọn |
 | POST | /admin/jobs/:id | Admin: lên lịch thử lại job pending |
 
 Upload riêng: `POST /api/attachments` multipart `ticketId,messageId,file`; MIME PNG/JPEG/PDF và magic bytes, 5 MB/file, tối đa 3 file/message. `GET /api/attachments?id=...` kiểm tra quyền và tải dạng attachment.
@@ -63,6 +64,12 @@ Chuỗi ký chính xác (UTF-8, LF, không LF cuối): `aihub-device-v1\nACTION\
 `GET /v1/ch-relay/license` của AIHub trả `device_activation_required` để CLI tự chuyển sang handshake. Endpoint cùng tên trên Sub2API yêu cầu shared gateway secret với namespace AIHub.
 
 ## SePay
+
+Trước khi kết nối SePay, Admin có thể mở `/admin/settings` và lưu ngân hàng nhận tiền. `PATCH /admin/payment-settings` nhận `{bankName,bankBin,bankAccount,bankAccountName,enabled,sepayEnabled,publicConsent}`. BIN gồm 6 chữ số, tài khoản 6–19 chữ số (giữ số 0 đầu), `publicConsent` phải là `true`; `enabled` đồng thời cập nhật `site.checkoutEnabled`. Không lưu khóa SePay hoặc mật khẩu ngân hàng qua endpoint này. `sepayEnabled=true` chỉ được chấp nhận khi server đã cấu hình provider và webhook secret hợp lệ; GET trả `sepayReady` và `webhookUrl` để hiển thị trạng thái.
+
+Checkout lưu bản chụp ngân hàng trong đơn, cùng giá và mã tham chiếu do server tạo. VietQR dùng đúng số tiền VND và mã đơn; việc tạo QR không ghi nhận thanh toán. Admin kiểm tra tiền thực nhận rồi dùng `/admin/orders/:id/reconcile` với số tiền khớp, mã giao dịch và lý do. Cho phép đối soát thủ công đơn pending/expired, chặn đơn cancelled/paid/refunded và giao dịch trùng. Sau xác nhận, một job cấp license được tạo trong cùng transaction. Đơn cũ không đổi tài khoản khi Admin sửa cài đặt. Hướng dẫn VietQR: [QR động](https://www.vietqr.io/qr-dong).
+
+SePay chỉ nhận webhook khi được bật trong cài đặt ngân hàng (hoặc cấu hình env cũ chưa được thay thế). Khi bật sau, đối soát vẫn kiểm tra tài khoản đã lưu trên từng đơn; webhook không tự xác nhận đơn đã quá hạn.
 
 Khuyến nghị HMAC: `X-SePay-Timestamp` (Unix giây), `X-SePay-Signature: sha256=<hex(HMAC(secret,timestamp+'.'+raw_body))>`. Chênh lệch tối đa 300 giây. Chế độ API key tùy chọn dùng `Authorization: Apikey <secret>`. Match transferType=in, accountNumber, transferAmount nguyên VND và duy nhất mã AH + 16 ký tự hex. Payload khác với cùng event ID trả 409; duplicate đúng trả success nhưng không cấp quyền thêm.
 

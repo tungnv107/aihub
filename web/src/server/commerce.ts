@@ -4,37 +4,23 @@ import { serial, Tx } from "./db";
 import { env, localSandbox } from "./env";
 import { fail, safeEqual, digest } from "./security";
 import type { Actor } from "./auth";
-import { siteFlags } from "./site";
+import { paymentConfiguration, paymentForOrder } from "./payments";
 export const checkoutSchema = z.object({
   planId: z.string().min(1),
   billingName: z.string().trim().min(2).max(120),
   renewalLicenseId: z.string().optional(),
 });
-export function paymentConfiguration() {
-  const available =
-    localSandbox ||
-    (env.PAYMENT_PROVIDER === "sepay" &&
-      !!env.SEPAY_WEBHOOK_SECRET &&
-      !!env.BANK_BIN &&
-      !!env.BANK_ACCOUNT);
-  return {
-    provider: env.PAYMENT_PROVIDER,
-    available,
-    sandbox: localSandbox,
-    bankBin: env.BANK_BIN,
-    bankAccount: env.BANK_ACCOUNT,
-    bankAccountName: env.BANK_ACCOUNT_NAME,
-  };
-}
 export async function checkout(
   user: Actor,
   input: z.infer<typeof checkoutSchema>,
 ) {
-  const flags = await siteFlags();
-  if (flags.maintenanceMode || !flags.checkoutEnabled)
-    fail(503, "checkout_paused");
-  if (!paymentConfiguration().available) fail(503, "payment_not_configured");
   return serial(async (tx) => {
+    const site = await tx.setting.findUnique({ where: { key: "site" } });
+    const flags = site?.value as Record<string, unknown> | null;
+    if (flags?.maintenanceMode || flags?.checkoutEnabled === false)
+      fail(503, "checkout_paused");
+    const payment = await paymentConfiguration(tx);
+    if (!payment.available) fail(503, "payment_not_configured");
     const plan = await tx.plan.findFirst({
       where: { id: input.planId, active: true },
     });
@@ -58,6 +44,7 @@ export async function checkout(
         billingName: input.billingName,
         billingEmail: user.email,
         amount: plan.price,
+        paymentInstructions: payment,
         expiresAt: new Date(Date.now() + 30 * 60 * 1000),
         renewalLicenseId: input.renewalLicenseId,
         items: {
@@ -74,13 +61,19 @@ export async function checkout(
     });
   });
 }
-export function verifyWebhook(provider: string, raw: string, headers: Headers) {
+export async function verifyWebhook(
+  provider: string,
+  raw: string,
+  headers: Headers,
+) {
   let secret: string;
   if (provider === "sandbox") {
     if (!localSandbox) fail(404, "provider_unavailable");
     secret = env.SANDBOX_PAYMENT_SECRET;
   } else if (provider === "sepay") {
     if (env.PAYMENT_PROVIDER !== "sepay" || !env.SEPAY_WEBHOOK_SECRET)
+      fail(404, "provider_unavailable");
+    if ((await paymentConfiguration()).provider !== "sepay")
       fail(404, "provider_unavailable");
     secret = env.SEPAY_WEBHOOK_SECRET;
   } else return fail(404, "provider_unavailable");
@@ -135,7 +128,13 @@ export async function reconcilePayment(provider: string, raw: string) {
         : null;
     let outcome = "UNMATCHED";
     if (event.transferType !== "in") outcome = "OUTGOING";
-    else if (provider === "sepay" && event.accountNumber !== env.BANK_ACCOUNT)
+    else if (
+      provider === "sepay" &&
+      event.accountNumber !==
+        (order
+          ? paymentForOrder(order).bankAccount
+          : (await paymentConfiguration(tx)).bankAccount)
+    )
       outcome = "WRONG_ACCOUNT";
     else if (order) {
       if (order.amount !== event.transferAmount) outcome = "AMOUNT_MISMATCH";
@@ -165,9 +164,13 @@ export async function settle(
   provider: string,
   reference: string,
   amount: number,
+  allowExpired = false,
 ) {
   const update = await tx.order.updateMany({
-    where: { id: orderId, status: "PENDING" },
+    where: {
+      id: orderId,
+      status: { in: allowExpired ? ["PENDING", "EXPIRED"] : ["PENDING"] },
+    },
     data: { status: "PAID", paidAt: new Date() },
   });
   if (update.count !== 1) fail(409, "order_not_pending");
@@ -194,12 +197,12 @@ export async function manualPayment(
   orderId: string,
   input: { reference: string; amount: number; reason: string },
 ) {
+  if (!user.roleNames.includes("ADMIN")) fail(403, "insufficient_permissions");
   return serial(async (tx) => {
     const order = await tx.order.findUnique({ where: { id: orderId } });
     if (!order) fail(404, "order_not_found");
     if (order.amount !== input.amount) fail(409, "amount_mismatch");
-    if (order.expiresAt.getTime() < Date.now()) fail(409, "order_expired");
-    await settle(tx, order.id, "manual", input.reference, input.amount);
+    await settle(tx, order.id, "manual", input.reference, input.amount, true);
     await tx.auditLog.create({
       data: {
         actorId: user.id,

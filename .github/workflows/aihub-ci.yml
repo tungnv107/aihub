@@ -46,7 +46,7 @@ jobs:
       - run: npm run db:migrate
       - run: npm run lint
       - run: npm run typecheck
-      - run: npx vitest run tests/commerce.test.ts tests/security.test.ts
+      - run: npx vitest run tests/commerce.test.ts tests/security.test.ts tests/bank-payments.test.ts
       - run: npm run build
   cli:
     runs-on: windows-latest

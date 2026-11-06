@@ -34,6 +34,8 @@ import { useText } from "./providers";
 import { adminFilters } from "@/lib/admin-filters";
 import { api, money, date, errorMessage } from "@/lib/api";
 import type { CustomerData, AdminOverviewData } from "@/lib/types";
+import type { AdminPaymentSettings } from "@/lib/payment";
+import { PaymentSettings } from "./payment-settings";
 type Row = Record<string, unknown> & { id: string };
 type FieldSpec = {
   name: string;
@@ -525,7 +527,7 @@ export function Admin({
   overview?: AdminOverviewData;
   configuration?: {
     site: Record<string, unknown> | null;
-    payment: { available: boolean; provider: string };
+    payment: AdminPaymentSettings;
     emailConfigured: boolean;
     sub2apiConfigured: boolean;
     releaseVerified: boolean;
@@ -752,7 +754,7 @@ export function Admin({
             <Button variant="ghost" onClick={() => setDetail(row.original)}>
               {t("Chi tiết", "Details")}
             </Button>
-            {row.original.status === "PENDING" && (
+            {["PENDING", "EXPIRED"].includes(str(row.original.status)) && (
               <>
                 <Button
                   variant="secondary"
@@ -767,17 +769,23 @@ export function Admin({
                 >
                   {t("Đối soát", "Reconcile")}
                 </Button>
-                <Confirm
-                  label={t("Hủy", "Cancel")}
-                  title={t("Hủy đơn?", "Cancel order?")}
-                  description={t(
-                    "Kiểm tra giao dịch trước khi hủy.",
-                    "Check for incoming payment before cancelling.",
-                  )}
-                  onConfirm={() =>
-                    mutate("orders/" + row.original.id + "/cancel", "POST", {})
-                  }
-                />
+                {row.original.status === "PENDING" && (
+                  <Confirm
+                    label={t("Hủy", "Cancel")}
+                    title={t("Hủy đơn?", "Cancel order?")}
+                    description={t(
+                      "Kiểm tra giao dịch trước khi hủy.",
+                      "Check for incoming payment before cancelling.",
+                    )}
+                    onConfirm={() =>
+                      mutate(
+                        "orders/" + row.original.id + "/cancel",
+                        "POST",
+                        {},
+                      )
+                    }
+                  />
+                )}
               </>
             )}
             {row.original.status === "PAID" &&
@@ -1169,12 +1177,21 @@ export function Admin({
       )}
       {section === "settings" && configuration ? (
         <>
+          <PaymentSettings
+            key={JSON.stringify(configuration.payment)}
+            initial={configuration.payment}
+          />
           <div className="system-grid">
             {[
               [
                 t("Thanh toán", "Payments"),
                 configuration.payment.available,
-                configuration.payment.provider,
+                configuration.payment.provider === "manual"
+                  ? t(
+                      "Chuyển khoản · Đối soát thủ công",
+                      "Bank transfer · Manual reconciliation",
+                    )
+                  : configuration.payment.provider,
               ],
               [t("Email", "Email"), configuration.emailConfigured, "SMTP"],
               ["Sub2API", configuration.sub2apiConfigured, "License authority"],
@@ -1200,8 +1217,8 @@ export function Admin({
           <div className="notice">
             <ShieldCheck size={17} />
             {t(
-              "Bí mật thanh toán, SMTP và Sub2API được cấu hình qua biến môi trường của máy chủ. Giao diện chỉ hiển thị trạng thái kết nối.",
-              "Payment, SMTP and Sub2API secrets are configured through server environment variables. Only configuration status is shown here.",
+              "Bạn có thể thiết lập tài khoản ngân hàng ở trên. Bí mật kết nối SePay, SMTP và Sub2API được quản lý riêng trên máy chủ.",
+              "Configure the receiving bank account above. SePay, SMTP and Sub2API connection secrets are managed separately on the server.",
             )}
           </div>
           <section className="panel">
@@ -1247,6 +1264,7 @@ export function Admin({
               ))}
             </div>
             <Editor
+              key={JSON.stringify(configuration.site)}
               kind="settings"
               initial={{
                 name: "AIHub",

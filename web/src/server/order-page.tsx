@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { pageActor } from "./page-auth";
 import { db } from "./db";
-import { paymentConfiguration } from "./commerce";
+import { paymentForOrder } from "./payments";
 import { jsonSafe } from "@/lib/api";
 import { OrderDetail } from "@/components/checkout";
 export async function renderOrder(id: string, resultPage = false) {
@@ -24,7 +24,7 @@ export async function renderOrder(id: string, resultPage = false) {
           order.status === "PENDING" && order.expiresAt.getTime() < Date.now()
             ? "EXPIRED"
             : order.status,
-        payment: paymentConfiguration(),
+        payment: paymentForOrder(order),
       })}
     />
   );

@@ -31,6 +31,8 @@ const errors: Record<string, string> = {
   account_unavailable: "Tài khoản chưa xác minh hoặc đã bị khóa.",
   invalid_input: "Kiểm tra lại thông tin đã nhập.",
   payment_not_configured: "Thanh toán chưa được cấu hình.",
+  sepay_not_configured:
+    "SePay chưa được kết nối. Hãy dùng đối soát thủ công trước.",
   device_limit_reached: "Đã đạt giới hạn thiết bị.",
   device_change_cooldown: "Vui lòng chờ hết thời gian chuyển máy.",
   insufficient_permissions: "Bạn không có quyền thực hiện thao tác này.",

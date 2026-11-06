@@ -3,7 +3,7 @@ import { pageActor } from "@/server/page-auth";
 import { adminList, adminOverview } from "@/server/queries";
 import { db } from "@/server/db";
 import { env } from "@/server/env";
-import { paymentConfiguration } from "@/server/commerce";
+import { adminPaymentConfiguration } from "@/server/payments";
 import { Admin } from "@/components/admin";
 import { jsonSafe } from "@/lib/api";
 export default async function Page({
@@ -70,7 +70,7 @@ export default async function Page({
           site:
             (await db.setting.findUnique({ where: { key: "site" } }))?.value ??
             null,
-          payment: paymentConfiguration(),
+          payment: await adminPaymentConfiguration(),
           emailConfigured: !!env.SMTP_HOST,
           sub2apiConfigured:
             !!env.SUB2API_ADMIN_API_KEY || !!env.SUB2API_ADMIN_TOKEN,

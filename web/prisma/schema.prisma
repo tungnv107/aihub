@@ -160,6 +160,7 @@ model Order {
   renewalLicenseId  String?
   refundRequestedAt DateTime?
   refundReason      String?
+  paymentInstructions Json?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   items             OrderItem[]

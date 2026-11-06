@@ -3257,6 +3257,43 @@ td .button {
     grid-template-columns: 1fr;
   }
 }
+.payment-settings {
+  margin-bottom: 24px;
+}
+.payment-settings h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.payment-settings-intro {
+  margin: 0 0 24px;
+  line-height: 1.8;
+  max-width: 800px;
+}
+.payment-settings-options {
+  margin-top: 22px;
+  gap: 12px;
+}
+.payment-sepay {
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+}
+.payment-sepay summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.payment-sepay > p {
+  margin: 14px 0;
+  line-height: 1.8;
+}
+.payment-amount {
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+  margin: 16px 0 24px;
+}
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

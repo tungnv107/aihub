@@ -144,7 +144,7 @@ test.describe.serial("AIHub end-to-end on local services", () => {
     await page.goto("/pricing");
     await page.getByRole("link", { name: "Chọn gói" }).first().click();
     await page.getByRole("checkbox").check();
-    await page.getByRole("button", { name: "Tạo đơn & thanh toán" }).click();
+    await page.getByRole("button", { name: "Tạo đơn & xem mã QR" }).click();
     await page.waitForURL("**/orders/*");
     orderId = page.url().split("/").at(-1)!;
     await page.goto("/payment/success?order=" + orderId);

@@ -29,14 +29,14 @@ import { useText } from "./providers";
 import { api, money, date, errorMessage } from "@/lib/api";
 import type { PublicData, Wire } from "@/lib/types";
 import type { Order, OrderItem, Payment } from "@/generated/prisma/client";
-import type { paymentConfiguration } from "@/server/commerce";
+import { bankQrUrl, type PaymentInstructions } from "@/lib/payment";
 export type OrderView = Wire<
   Order & {
     items: OrderItem[];
     payments: Payment[];
     license: { id: string; status: string } | null;
   }
-> & { payment: ReturnType<typeof paymentConfiguration> };
+> & { payment: PaymentInstructions };
 export function Checkout({
   data,
   user,
@@ -166,7 +166,7 @@ export function Checkout({
                 disabled={!data.payment.available}
                 type="submit"
               >
-                {t("Tạo đơn & thanh toán", "Create order & pay")}
+                {t("Tạo đơn & xem mã QR", "Create order & view QR")}
                 <ArrowRight size={16} />
               </Button>
               <p className="tiny muted">
@@ -261,7 +261,8 @@ export function OrderDetail({
   }, [order.status, order.license, order.renewalLicenseId, initial.id, t]);
   const pending = order.status === "PENDING",
     paid = order.status === "PAID";
-  const qr = `https://img.vietqr.io/image/${encodeURIComponent(order.payment.bankBin)}-${encodeURIComponent(order.payment.bankAccount)}-compact2.png?amount=${order.amount}&addInfo=${encodeURIComponent(order.code)}&accountName=${encodeURIComponent(order.payment.bankAccountName)}`;
+  const qr = bankQrUrl(order.payment, order.amount, order.code);
+  const [qrFailed, setQrFailed] = useState(false);
   return (
     <>
       <Header />
@@ -361,21 +362,49 @@ export function OrderDetail({
                       "Test order. Do not send real money. Payment requires a signed sandbox webhook.",
                     )}
                   </div>
-                ) : (
+                ) : qr ? (
                   <>
-                    <h2 style={{ fontSize: 17 }}>VietQR</h2>
-                    <img
-                      className="qr-code"
-                      src={qr}
-                      alt={t(
-                        "Mã QR thanh toán đơn hàng",
-                        "Order payment QR code",
+                    <h2 style={{ fontSize: 17 }}>
+                      {t(
+                        "Quét mã để chuyển khoản",
+                        "Scan to make a bank transfer",
                       )}
-                    />
+                    </h2>
+                    <p className="tiny muted">
+                      {t("Chờ đối soát", "Awaiting reconciliation")}
+                    </p>
+                    {qrFailed ? (
+                      <div className="notice warning">
+                        {t(
+                          "Chưa tải được mã QR. Bạn có thể chuyển khoản bằng thông tin bên dưới.",
+                          "QR could not load. You can transfer using the details below.",
+                        )}
+                      </div>
+                    ) : (
+                      <img
+                        className="qr-code"
+                        src={qr}
+                        onError={() => setQrFailed(true)}
+                        referrerPolicy="no-referrer"
+                        alt={t(
+                          "Mã QR thanh toán đơn hàng",
+                          "Order payment QR code",
+                        )}
+                      />
+                    )}
+                    <p className="payment-amount">
+                      {money(order.amount, locale)}
+                    </p>
                     <dl className="detail-grid">
+                      <div className="full">
+                        <dt>{t("Ngân hàng thụ hưởng", "Receiving bank")}</dt>
+                        <dd>{order.payment.bankName}</dd>
+                      </div>
                       <div>
                         <dt>{t("Tài khoản", "Account")}</dt>
-                        <dd>{order.payment.bankAccount}</dd>
+                        <dd>
+                          <CodeBlock>{order.payment.bankAccount}</CodeBlock>
+                        </dd>
                       </div>
                       <div>
                         <dt>{t("Chủ tài khoản", "Account name")}</dt>
@@ -389,7 +418,29 @@ export function OrderDetail({
                       )}
                     </p>
                     <CodeBlock>{order.code}</CodeBlock>
+                    <div className="notice" style={{ marginTop: 20 }}>
+                      <ShieldCheck size={18} />
+                      {t(
+                        "Hiển thị mã QR chưa phải thanh toán thành công. License chỉ được cấp sau khi đã nhận tiền và xác nhận đối soát.",
+                        "Displaying a QR does not confirm payment. Your license is issued only after funds are received and reconciled.",
+                      )}
+                    </div>
+                    {order.payment.provider === "manual" && (
+                      <p className="tiny muted" style={{ marginTop: 12 }}>
+                        {t(
+                          "Quản trị viên sẽ kiểm tra giao dịch. Nếu cần hỗ trợ, gửi ticket kèm mã đơn và mã giao dịch ngân hàng.",
+                          "An administrator will review your transfer. For help, open a ticket with the order and bank transaction reference.",
+                        )}
+                      </p>
+                    )}
                   </>
+                ) : (
+                  <div className="notice warning">
+                    {t(
+                      "Chưa có hướng dẫn chuyển khoản hợp lệ cho đơn này. Vui lòng liên hệ hỗ trợ.",
+                      "Payment instructions are unavailable for this order. Please contact support.",
+                    )}
+                  </div>
                 )}
                 <div className="row tiny muted" style={{ marginTop: 20 }}>
                   <Clock size={15} />

@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { env } from "./env";
-import { paymentConfiguration } from "./commerce";
+import { paymentConfiguration } from "./payments";
 import type { Actor } from "./auth";
 import {
   OrderStatus,
@@ -117,12 +117,15 @@ export async function publicData(locale = "vi") {
     faqs,
     testimonials,
     site: site?.value,
-    payment: paymentConfiguration(),
+    payment: await paymentConfiguration(),
     release:
       env.AIHUB_NPM_RELEASE_VERIFIED === "true" &&
       env.AIHUB_NPM_PACKAGE_NAME &&
       env.AIHUB_NPM_PACKAGE_VERSION
-        ? { name: env.AIHUB_NPM_PACKAGE_NAME, version: env.AIHUB_NPM_PACKAGE_VERSION }
+        ? {
+            name: env.AIHUB_NPM_PACKAGE_NAME,
+            version: env.AIHUB_NPM_PACKAGE_VERSION,
+          }
         : null,
     googleEnabled: !!env.GOOGLE_CLIENT_ID,
     emailConfigured: !!env.SMTP_HOST,

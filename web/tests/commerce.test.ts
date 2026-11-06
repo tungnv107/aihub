@@ -67,7 +67,7 @@ const payload = (code: string, eventId: string, amount = 19000) =>
     content: code,
   });
 describe("authenticated payments and durable fulfillment", () => {
-  it("authenticates the exact raw body and rejects invalid, changed, old signatures", () => {
+  it("authenticates the exact raw body and rejects invalid, changed, old signatures", async () => {
     const raw = payload("AH0123456789ABCDEF", id + "signature"),
       timestamp = String(Math.floor(Date.now() / 1000));
     const signature =
@@ -79,15 +79,19 @@ describe("authenticated payments and durable fulfillment", () => {
       "x-sepay-timestamp": timestamp,
       "x-sepay-signature": signature,
     });
-    expect(() => verifyWebhook("sandbox", raw, headers)).not.toThrow();
-    expect(() => verifyWebhook("sandbox", raw + " ", headers)).toThrow(
+    await expect(
+      verifyWebhook("sandbox", raw, headers),
+    ).resolves.toBeUndefined();
+    await expect(verifyWebhook("sandbox", raw + " ", headers)).rejects.toThrow(
       "invalid_signature",
     );
     headers.set("x-sepay-timestamp", String(Number(timestamp) - 1000));
-    expect(() => verifyWebhook("sandbox", raw, headers)).toThrow(
+    await expect(verifyWebhook("sandbox", raw, headers)).rejects.toThrow(
       "stale_signature",
     );
-    expect(() => verifyWebhook("sandbox", raw, new Headers())).toThrow();
+    await expect(
+      verifyWebhook("sandbox", raw, new Headers()),
+    ).rejects.toThrow();
   });
   it("accepts one verified payment and enqueues one provisioning job under concurrent retries", async () => {
     const created = await order();
@@ -168,12 +172,16 @@ describe("authenticated payments and durable fulfillment", () => {
       SEPAY_AUTH_MODE: env.SEPAY_AUTH_MODE,
       SEPAY_WEBHOOK_SECRET: env.SEPAY_WEBHOOK_SECRET,
       BANK_ACCOUNT: env.BANK_ACCOUNT,
+      BANK_BIN: env.BANK_BIN,
+      BANK_ACCOUNT_NAME: env.BANK_ACCOUNT_NAME,
     };
     try {
       env.PAYMENT_PROVIDER = "sepay";
       env.SEPAY_AUTH_MODE = "hmac";
       env.SEPAY_WEBHOOK_SECRET = "test-only-provider-" + randomUUID();
-      env.BANK_ACCOUNT = "fixture-account";
+      env.BANK_ACCOUNT = "123456789012";
+      env.BANK_BIN = "970415";
+      env.BANK_ACCOUNT_NAME = "TEST FIXTURE";
       const created = await order(),
         raw = payload(created.code, id + "wrong-bank"),
         timestamp = String(Math.floor(Date.now() / 1000));
@@ -185,22 +193,24 @@ describe("authenticated payments and durable fulfillment", () => {
             .update(timestamp + "." + raw)
             .digest("hex"),
       });
-      expect(() => verifyWebhook("sepay", raw, headers)).not.toThrow();
-      expect(() => verifyWebhook("sepay", raw + " ", headers)).toThrow(
+      await expect(
+        verifyWebhook("sepay", raw, headers),
+      ).resolves.toBeUndefined();
+      await expect(verifyWebhook("sepay", raw + " ", headers)).rejects.toThrow(
         "invalid_signature",
       );
       expect(await reconcilePayment("sepay", raw)).toMatchObject({
         outcome: "WRONG_ACCOUNT",
       });
       env.SEPAY_AUTH_MODE = "apikey";
-      expect(() =>
+      await expect(
         verifyWebhook(
           "sepay",
           raw,
           new Headers({ authorization: "Apikey " + env.SEPAY_WEBHOOK_SECRET }),
         ),
-      ).not.toThrow();
-      expect(() => verifyWebhook("sepay", raw, new Headers())).toThrow(
+      ).resolves.toBeUndefined();
+      await expect(verifyWebhook("sepay", raw, new Headers())).rejects.toThrow(
         "invalid_signature",
       );
       expect(await db.payment.count({ where: { orderId: created.id } })).toBe(
