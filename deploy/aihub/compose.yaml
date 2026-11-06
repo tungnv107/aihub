@@ -19,7 +19,7 @@ x-app-environment: &app-environment
   BANK_ACCOUNT_NAME: ${BANK_ACCOUNT_NAME:-}
   SMTP_HOST: ${SMTP_HOST:-}
   SMTP_PORT: ${SMTP_PORT:-587}
-  SMTP_SECURE: ${SMTP_SECURE:-true}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
   SMTP_USER: ${SMTP_USER:-}
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   MAIL_FROM: ${MAIL_FROM:-}
@@ -28,8 +28,6 @@ x-app-environment: &app-environment
   AIHUB_NPM_PACKAGE_NAME: ${AIHUB_NPM_PACKAGE_NAME:-}
   AIHUB_NPM_PACKAGE_VERSION: ${AIHUB_NPM_PACKAGE_VERSION:-}
   AIHUB_NPM_RELEASE_VERIFIED: ${AIHUB_NPM_RELEASE_VERIFIED:-false}
-  BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
-  BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
 services:
   web:
     build: {context: ../../web, target: web}
@@ -50,7 +48,10 @@ services:
     security_opt: [no-new-privileges:true]
   migrate:
     build: {context: ../../web, target: worker}
-    environment: *app-environment
+    environment:
+      <<: *app-environment
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
     command: ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node_modules/.bin/tsx prisma/seed.ts && node_modules/.bin/tsx scripts/seed-policies.ts"]
     depends_on:
       postgres: {condition: service_healthy}
