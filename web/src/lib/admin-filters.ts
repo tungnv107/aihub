@@ -1,0 +1,22 @@
+export const adminFilters: Record<string, string[]> = {
+  users: ["ACTIVE", "DISABLED", "UNVERIFIED"],
+  plans: ["ACTIVE", "INACTIVE"],
+  orders: ["PENDING", "PAID", "EXPIRED", "CANCELLED", "FAILED", "REFUNDED"],
+  licenses: ["ACTIVE", "EXPIRED", "PENDING", "REVOKED", "FAILED"],
+  support: [
+    "OPEN",
+    "IN_PROGRESS",
+    "WAITING_CUSTOMER",
+    "RESOLVED",
+    "CLOSED",
+    "LOW",
+    "NORMAL",
+    "HIGH",
+    "URGENT",
+  ],
+  documents: ["PUBLISHED", "DRAFT"],
+  faqs: ["PUBLISHED", "DRAFT"],
+  announcements: ["PUBLISHED", "DRAFT"],
+  testimonials: ["PUBLISHED", "DRAFT"],
+  jobs: ["PENDING", "DONE"],
+};

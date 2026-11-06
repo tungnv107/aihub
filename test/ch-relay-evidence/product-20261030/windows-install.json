@@ -1,0 +1,14 @@
+﻿{
+    "install":  true,
+    "activation_required":  true,
+    "auth_unchanged":  true,
+    "fixture":  "F:\\Tool\\gpt_signup_hybrid-main_1\\test\\product-install-fixture-9cad7aa612c4413d8f5ed908040bcedc",
+    "uninstall":  true,
+    "autostart_tested":  true,
+    "node_download_tested":  true,
+    "real_codex_config_unchanged":  true,
+    "windows_powershell":  "5.1.26100.9711",
+    "config_restored_exactly":  true,
+    "reinstall":  true,
+    "result":  "passed"
+}

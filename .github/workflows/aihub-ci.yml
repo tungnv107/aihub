@@ -1,0 +1,60 @@
+name: AIHub checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  platform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: aihub
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: aihub_test
+        ports: ["15432:5432"]
+        options: --health-cmd "pg_isready -U aihub -d aihub_test" --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["16379:6379"]
+    env:
+      DATABASE_URL: postgresql://aihub:ci-only-password@127.0.0.1:15432/aihub_test
+      TEST_DATABASE_URL: postgresql://aihub:ci-only-password@127.0.0.1:15432/aihub_test
+      REDIS_URL: redis://127.0.0.1:16379
+      BETTER_AUTH_URL: http://127.0.0.1:3000
+      BETTER_AUTH_SECRET: ci-only-placeholder-for-authentication-secret
+      LICENSE_HASH_SECRET: ci-only-placeholder-for-license-hash-secret
+      LICENSE_ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      AIHUB_GATEWAY_SECRET: ci-only-placeholder-for-gateway-secret
+      SUB2API_URL: http://127.0.0.1:18080
+      PAYMENT_PROVIDER: sandbox
+      SANDBOX_PAYMENT_SECRET: ci-only-placeholder-for-sandbox-payments
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.22.1
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run db:generate
+      - run: npm run db:migrate
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npx vitest run tests/commerce.test.ts tests/security.test.ts
+      - run: npm run build
+  cli:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.22.1
+      - run: npm ci --prefix test/relay-product-build-tools
+      - run: node scripts/build-npm.mjs
+      - run: node --test test/test_ch_relay_license.mjs test/test_ch_relay_setup.mjs test/test_ch_relay_package.mjs

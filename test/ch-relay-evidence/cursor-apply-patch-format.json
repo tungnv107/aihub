@@ -1,0 +1,5 @@
+{
+  "type": "grammar",
+  "definition": "start: begin_patch hunk end_patch\nbegin_patch: \"*** Begin Patch\" LF\nend_patch: \"*** End Patch\" LF?\n\nhunk: add_hunk | update_hunk\nadd_hunk: \"*** Add File: \" filename LF add_line+\nupdate_hunk: \"*** Update File: \" filename LF change?\n\nfilename: /(.+)/\nadd_line: \"+\" /(.*)/ LF -> line\n\nchange: (change_context | change_line)+ eof_line?\n\nchange_context: (\"@@\" | \"@@ \" /(.+)/) LF\nchange_line: (\"+\" | \"-\" | \" \") /(.*)/ LF\neof_line: \"*** End of File\" LF\n\n%import common.LF\n",
+  "syntax": "lark"
+}

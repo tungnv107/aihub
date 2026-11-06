@@ -1,0 +1,69 @@
+name: tn-ch-relay
+services:
+  sub2api:
+    build:
+      context: ../../.reference/sub2api
+      args:
+        GOPROXY: https://proxy.golang.org,direct
+        GOSUMDB: sum.golang.org
+    image: tn-ch-relay-sub2api:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SUB2API_PORT:-18080}:8080"
+    environment:
+      AUTO_SETUP: "true"
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: "8080"
+      SERVER_MODE: release
+      RUN_MODE: standard
+      CH_RELAY_LICENSE_ONLY: "true"
+      AIHUB_GATEWAY_SECRET: ${AIHUB_GATEWAY_SECRET:-}
+      DATABASE_HOST: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_USER: sub2api
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Run node scripts/init-sub2api.mjs first}
+      DATABASE_DBNAME: sub2api
+      DATABASE_SSLMODE: disable
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Run node scripts/init-sub2api.mjs first}
+      JWT_SECRET: ${JWT_SECRET:?Run node scripts/init-sub2api.mjs first}
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?Run node scripts/init-sub2api.mjs first}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Run node scripts/init-sub2api.mjs first}
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - app-data:/app/data
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    security_opt: [no-new-privileges:true]
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sub2api
+      POSTGRES_DB: sub2api
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run node scripts/init-sub2api.mjs first}
+    volumes: ["postgres-data:/var/lib/postgresql"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U sub2api -d sub2api"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Run node scripts/init-sub2api.mjs first}
+    command: [sh, -c, 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+volumes:
+  app-data:
+  postgres-data:
+  redis-data:

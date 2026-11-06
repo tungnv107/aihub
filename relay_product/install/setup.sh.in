@@ -1,0 +1,114 @@
+#!/bin/bash
+# TDH Relay - macOS installer. Credentials stay with Codex.
+set -eu
+main() {
+  printf '%s\n' 'TDH Relay for an existing Codex app. This command does not install Codex or Sub2API.'
+  [ "$(uname -s)" = Darwin ] || { printf '%s\n' 'This installer is for macOS. Use the proxy Docker package on Linux.'; return 1; }
+  relay_root="${TDH_RELAY_HOME:-$HOME/Library/Application Support/TDHRelay}"
+  codex_dir="${TDH_CODEX_HOME:-${CODEX_HOME:-$HOME/.codex}}"
+  case "$relay_root" in /*) ;; *) printf '%s\n' 'Installation path must be absolute.'; return 1;; esac
+  [ "$relay_root" != / ] && [ "$relay_root" != "$HOME" ] && [ "$relay_root" != "$codex_dir" ] && [ ! -L "$relay_root" ] || return 1
+  umask 077
+  if [ -d "$relay_root" ] && [ -n "$(ls -A "$relay_root")" ]; then
+    [ -f "$relay_root/product.id" ] && [ "$(cat "$relay_root/product.id")" = tdh-relay ] || { printf '%s\n' 'Directory belongs to another application.'; return 1; }
+  fi
+  mkdir -p "$relay_root"; chmod 700 "$relay_root"; printf '%s' tdh-relay > "$relay_root/product.id"
+  relay_stage=$(mktemp -d "$relay_root/stage.XXXXXX")
+  relay_app="$relay_root/app"
+  relay_node="$relay_root/runtime/bin/node"
+  relay_cli="$relay_app/relay_product/cli.mjs"
+  relay_plist="$HOME/Library/LaunchAgents/me.tudonghoa.codex-relay.plist"
+  relay_old=''
+  relay_synced=0
+  download_verified() {
+    curl --proto '=https' --tlsv1.2 -fSL --connect-timeout 20 --max-time 300 "$1" -o "$2"
+    actual=$(shasum -a 256 "$2" | awk '{print $1}')
+    [ "$actual" = "$3" ] || { printf '%s\n' 'Download checksum mismatch.'; return 1; }
+  }
+  cli() { "$relay_node" "$relay_cli" "$@" --home "$relay_root"; }
+  rollback() {
+    status=$?
+    if [ "$status" -ne 0 ]; then
+      printf '%s\n' 'Installation failed. Keeping downloads and backups for inspection.'
+      relay_configuration_restored=0
+      if [ -x "$relay_node" ] && [ -f "$relay_cli" ]; then
+        cli stop || true
+        if [ "$relay_synced" = 1 ] && cli unsync; then relay_configuration_restored=1; fi
+      fi
+      if [ -n "$relay_old" ] && [ -d "$relay_old" ]; then
+        [ ! -d "$relay_app" ] || mv "$relay_app" "$relay_stage/failed-app"
+        mv "$relay_old" "$relay_app"
+        if [ "$relay_configuration_restored" = 1 ]; then cli sync || true; fi
+        cli start || true
+      fi
+    fi
+    exit "$status"
+  }
+  trap rollback EXIT
+  printf '%s\n' 'Downloading TDH Relay @@VERSION@@...'
+  download_verified 'https://codex.tudonghoa.me/releases/@@VERSION@@/tdh-relay.tar.gz' "$relay_stage/app.tar.gz" '@@TGZ_SHA@@'
+  if tar -tzf "$relay_stage/app.tar.gz" | grep -E '(^/|(^|/)\.\.(/|$))' >/dev/null; then printf '%s\n' 'Unsafe archive.'; return 1; fi
+  mkdir "$relay_stage/app"
+  tar -xzf "$relay_stage/app.tar.gz" -C "$relay_stage/app"
+  [ -f "$relay_stage/app/relay_product/cli.mjs" ] || return 1
+  case "$(uname -m)" in
+    arm64) node_arch=arm64;node_hash='@@MAC_ARM64_SHA@@';;
+    x86_64) node_arch=x64;node_hash='@@MAC_X64_SHA@@';;
+    *) printf '%s\n' 'Unsupported CPU architecture.'; return 1;;
+  esac
+  if [ -f "$relay_plist" ]; then
+    grep -F 'TDH Relay managed startup' "$relay_plist" >/dev/null || return 1
+    if launchctl print "gui/$(id -u)/me.tudonghoa.codex-relay" >/dev/null 2>&1; then launchctl bootout "gui/$(id -u)" "$relay_plist"; fi
+  fi
+  if [ -x "$relay_node" ] && [ -f "$relay_cli" ]; then cli stop; fi
+  if [ ! -x "$relay_node" ] || [ "$("$relay_node" --version)" != 'v@@NODE_VERSION@@' ]; then
+    download_verified "https://nodejs.org/dist/v@@NODE_VERSION@@/node-v@@NODE_VERSION@@-darwin-$node_arch.tar.gz" "$relay_stage/node.tar.gz" "$node_hash"
+    mkdir "$relay_stage/runtime"
+    tar -xzf "$relay_stage/node.tar.gz" --strip-components=1 -C "$relay_stage/runtime"
+    if [ -d "$relay_root/runtime" ]; then mv "$relay_root/runtime" "$relay_stage/old-runtime"; fi
+    mv "$relay_stage/runtime" "$relay_root/runtime"
+  fi
+  [ "$("$relay_node" --version)" = 'v@@NODE_VERSION@@' ] || return 1
+  if [ -d "$relay_app" ]; then relay_old="$relay_stage/old-app";mv "$relay_app" "$relay_old";fi
+  mv "$relay_stage/app" "$relay_app"
+  cli init --codex-home "$codex_dir"
+  if ! cli license >/dev/null 2>&1; then
+    printf '%s' 'Nhap key kich hoat TDH Relay: ' > /dev/tty
+    IFS= read -r -s relay_key < /dev/tty
+    printf '\n' > /dev/tty
+    printf '%s\n' "$relay_key" | cli activate
+    unset relay_key
+  fi
+  cli sync
+  relay_synced=1
+  cli start
+  if [ "${TDH_RELAY_NO_AUTOSTART:-0}" != 1 ]; then
+    cli stop
+    mkdir -p "$(dirname "$relay_plist")"
+    xml_escape() { printf '%s' "$1" | sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g;s/"/\&quot;/g'; }
+    cat > "$relay_plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- TDH Relay managed startup -->
+<plist version="1.0"><dict>
+<key>Label</key><string>me.tudonghoa.codex-relay</string>
+<key>ProgramArguments</key><array><string>$(xml_escape "$relay_node")</string><string>$(xml_escape "$relay_cli")</string><string>serve</string><string>--home</string><string>$(xml_escape "$relay_root")</string></array>
+<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
+<key>StandardOutPath</key><string>$(xml_escape "$relay_root/logs/desktop.log")</string>
+<key>StandardErrorPath</key><string>$(xml_escape "$relay_root/logs/desktop.log")</string>
+</dict></plist>
+EOF
+    plutil -lint "$relay_plist"
+    launchctl bootstrap "gui/$(id -u)" "$relay_plist"
+    sleep 2
+  fi
+  cli health
+  cli status
+  trap - EXIT
+  # The temporary directory is an exact child created above, never a computed user directory.
+  case "$relay_stage" in "$relay_root"/stage.*) rm -rf "$relay_stage";; *) return 1;; esac
+  printf '%s\n' 'Installed. Close and reopen Codex; sign in with your own ChatGPT account.'
+  printf '%s\n' 'Customer portal: https://codex.tudonghoa.me/portal - license, devices, statistics and setup guide.'
+  printf '%s\n' 'Uninstall: curl -fsSL "https://codex.tudonghoa.me/setup.sh?remove=1" | bash'
+}
+main "$@"

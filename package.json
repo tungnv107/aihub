@@ -1,0 +1,20 @@
+{
+  "name": "toolcodex",
+  "version": "0.3.3",
+  "private": true,
+  "description": "TDH Relay: local Codex relay, proxy integration and device-bound licensing",
+  "type": "module",
+  "engines": {"node": ">=24.22.1"},
+  "scripts": {
+    "test": "node test/run-tests.mjs",
+    "test:sub2api": "node --test test/test_ch_relay*.mjs",
+    "build:npm": "node scripts/build-npm.mjs",
+    "build:npm:aihub": "node scripts/build-npm.mjs --package-name @tungnv107/aihub",
+    "prepare:sub2api": "node scripts/prepare-sub2api.mjs",
+    "test:desktop": "node --test test/test_relay_product_20261030.mjs test/test_product_config_recovery.mjs",
+    "test:license": "node --test test/test_product_license_20261030.mjs",
+    "test:admin": "node --test test/test_admin_20261030.mjs",
+    "bundle": "node test/bundle_relay_product_20261030.mjs dist/customer",
+    "build:release": "python test/build_relay_product_20261030.py"
+  }
+}

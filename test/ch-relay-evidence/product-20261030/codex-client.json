@@ -1,0 +1,28 @@
+{
+  "exitCode": 0,
+  "requests": 1,
+  "bodyPolicy": true,
+  "answer": "CODEX_PRODUCT_OK",
+  "inbound": [
+    {
+      "route": "/v1/models?client_version=0.154.0",
+      "method": "GET",
+      "encoding": "identity"
+    },
+    {
+      "route": "/v1/models?client_version=0.154.0",
+      "method": "GET",
+      "encoding": "identity"
+    },
+    {
+      "route": "/v1/responses",
+      "method": "POST",
+      "encoding": "zstd",
+      "contentType": "application/json"
+    }
+  ],
+  "passed": true,
+  "client": "codex-cli 0.154.0 Windows",
+  "authentication": "synthetic ChatGPT-shaped fixture, no real credentials",
+  "external_inference": false
+}

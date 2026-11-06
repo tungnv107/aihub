@@ -1,0 +1,5 @@
+# Replace with your Sub2API DNS name, pointing to this server.
+sub2api.example.com {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:18080
+}

@@ -1,0 +1,74 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import {once} from 'node:events';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import {LicenseAuthority} from '../relay_product/license-server.mjs';
+import {LicenseClient} from '../relay_product/license-client.mjs';
+import {publicText,hash} from '../relay_product/license-protocol.mjs';
+import {createAdminServer} from '../relay_product/admin/server.mjs';
+const require=createRequire(path.join(process.env.TDH_TEST_PACKAGES??'C:/Users/DELL/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules','playwright/package.json'));
+const {chromium}=require('playwright');
+const home=fs.mkdtempSync(path.join(import.meta.dirname,'admin-fixture-')),authority=new LicenseAuthority(home);
+const port=18593,origin='http://127.0.0.1:'+port,{server,auth}=createAdminServer(authority,{origin,secure:false});
+const password='Portal-browser-synthetic-password';await auth.provision('owner',password);authority.db.exec('UPDATE admin_users SET must_change=0');
+server.listen(port,'127.0.0.1');await once(server,'listening');
+const browser=await chromium.launch({headless:true,executablePath:process.env.TDH_TEST_BROWSER??'C:/Program Files/Google/Chrome/Application/chrome.exe'});
+const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true}),page=await context.newPage(),errors=[];
+page.on('pageerror',error=>errors.push(error.message));
+const output=path.resolve('artifacts/portal-ui');fs.mkdirSync(output,{recursive:true});
+try{
+  await page.goto(origin+'/admin');await page.getByLabel('Tên đăng nhập').fill('owner');await page.getByLabel('Mật khẩu',{exact:true}).fill(password);await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();
+  await page.getByRole('button',{name:'Cấp key mới'}).click();await page.getByLabel('Tên khách / tên lô key').fill('=Lô <script>alert(1)</script>');
+  await page.getByLabel('Số lượng key').fill('3');await page.getByLabel('Số ngày sử dụng').fill('14');await page.getByRole('button',{name:'Tạo key',exact:true}).click();
+  await page.getByRole('heading',{name:'Đã cấp 3 key'}).waitFor();
+  assert.equal(await page.locator('#dialog script').count(),0);
+  const keys=await page.locator('.batch-keys tbody tr td:nth-child(2)').allTextContents();
+  assert.equal(keys.length,3);assert.equal(new Set(keys).size,3);assert.equal(authority.list().filter(l=>l.started_at===null).length,3);
+  await page.screenshot({path:path.join(output,'bulk-desktop.png'),fullPage:true});
+  const downloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Tải CSV'}).click();const download=await downloadPromise;
+  const csv=fs.readFileSync(await download.path(),'utf8');assert.ok(csv.includes('"\'=Lô'));for(const key of keys)assert.ok(csv.includes(key));assert.equal(csv.split('\r\n').length,4);
+  await page.getByRole('button',{name:'Đóng hộp thoại'}).click();await page.getByRole('link',{name:'Key & khách hàng',exact:true}).click();
+  await page.getByLabel('Trạng thái',{exact:true}).selectOption('pending');await page.getByRole('button',{name:'Lọc danh sách'}).click();
+  await page.getByText('14 ngày từ kích hoạt').first().waitFor();assert.equal(await page.locator('tbody tr').count(),3);
+  const customerContext=await browser.newContext({viewport:{width:1440,height:1000}}),client=await customerContext.newPage();
+  client.on('pageerror',error=>errors.push(error.message));
+  await client.goto(origin+'/portal');await client.getByRole('heading',{name:'Quản lý relay của bạn'}).waitFor();
+  await client.screenshot({path:path.join(output,'login-desktop.png'),fullPage:true});
+  await client.getByLabel('Key TDH Relay',{exact:true}).fill(keys[0]);await client.getByRole('button',{name:'Vào trang khách hàng'}).click();
+  await client.getByRole('heading',{name:'Key của tôi'}).waitFor();await client.getByText('Chờ kích hoạt',{exact:true}).waitFor();
+  assert.equal(await client.locator('#content script').count(),0);assert.equal(authority.list().every(l=>l.started_at===null),true);
+  assert.equal(await client.evaluate(()=>Object.keys(localStorage).length),0);assert.ok(!client.url().includes(keys[0]));
+  await client.screenshot({path:path.join(output,'pending-desktop.png'),fullPage:true});
+  const state=new Map(),pair=crypto.generateKeyPairSync('ed25519');
+  const device=new LicenseClient({get:k=>state.get(k),set:(k,v)=>state.set(k,v)},{device:{deviceId:hash(crypto.randomBytes(20)),publicKey:publicText(pair.privateKey),privateKey:pair.privateKey},publicKey:authority.publicKey,request:async(route,body)=>authority[route](body)});
+  await device.activate(keys[0]);await client.getByRole('button',{name:'Làm mới'}).click();await client.getByText('Đang sử dụng',{exact:true}).waitFor();
+  await client.getByRole('link',{name:'Thiết bị',exact:true}).click();await client.getByRole('heading',{name:'Thiết bị',exact:true}).waitFor();
+  assert.equal(await client.locator('tbody tr').count(),1);
+  await client.getByRole('link',{name:'Thống kê',exact:true}).click();await client.getByRole('heading',{name:'Chưa có dữ liệu thống kê'}).waitFor();
+  const report={schema:'tdh-diagnostic-v1',mode:'desktop',version:'0.3.1',generatedAt:new Date().toISOString(),requests:123,errors:3,avgDurationMs:345,attempts:125,licenseActive:true,statuses:{200:120,429:3},prompt:'not stored'};
+  await client.getByLabel('File JSON do công cụ TDH xuất (tối đa 20 KB)').setInputFiles({name:'report.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(report))});
+  await client.getByRole('button',{name:'Tải báo cáo lên'}).click();await client.getByRole('heading',{name:'Báo cáo gần nhất'}).waitFor();
+  assert.equal(authority.db.prepare('SELECT report FROM admin_reports').get().report.includes('not stored'),false);
+  await client.screenshot({path:path.join(output,'statistics-desktop.png'),fullPage:true});
+  await client.getByRole('link',{name:'Cài đặt & hỗ trợ',exact:true}).click();await client.getByRole('heading',{name:'Cài TDH Relay trên Windows'}).waitFor();
+  assert.match(await client.locator('#install').textContent(),/setup.ps1/);
+  await client.getByRole('button',{name:'macOS / Codex'}).click();await client.getByRole('heading',{name:'Cài TDH Relay trên macOS'}).waitFor();
+  assert.match(await client.locator('#install').textContent(),/setup.sh/);
+  await client.getByRole('button',{name:'Server / Sub2API'}).click();await client.getByRole('heading',{name:'Kết nối với Sub2API'}).waitFor();
+  await client.getByRole('button',{name:'Windows / Codex'}).click();
+  await client.screenshot({path:path.join(output,'setup-desktop.png'),fullPage:true});
+  for(const width of [375,768,992]){
+    await client.setViewportSize({width,height:900});
+    for(const [name,title] of [['Key của tôi','Key của tôi'],['Thiết bị','Thiết bị'],['Thống kê','Thống kê'],['Cài đặt & hỗ trợ','Cài đặt & hỗ trợ']]){
+      await client.getByRole('link',{name,exact:true}).click();await client.getByRole('heading',{name:title,exact:true}).waitFor();
+      assert.ok(await client.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'No horizontal overflow: '+name+' '+width);
+    }
+    await client.screenshot({path:path.join(output,'setup-'+width+'.png'),fullPage:true});
+  }
+  await client.getByRole('button',{name:'Đăng xuất / đổi key'}).click();await client.getByRole('heading',{name:'Quản lý relay của bạn'}).waitFor();
+  assert.equal((await customerContext.request.get(origin+'/portal/api/summary')).status(),401);
+  assert.deepEqual(errors,[]);
+  console.log(JSON.stringify({passed:true,flows:['bulk_3','csv_formula_escape','pending_filter','key_login','no_early_activation','devices','manual_report','setup_platforms','mobile','logout'],viewportWidths:[1440,375,768,992],pageErrors:errors,screenshots:output}));
+}finally{await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));authority.close();}

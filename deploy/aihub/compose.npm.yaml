@@ -1,0 +1,116 @@
+name: aihub
+x-app-environment: &app-environment
+  NODE_ENV: production
+  DATABASE_URL: postgresql://aihub:${POSTGRES_PASSWORD:?required}@aihub-db:5432/aihub
+  REDIS_URL: redis://:${REDIS_PASSWORD:?required}@aihub-cache:6379
+  BETTER_AUTH_URL: https://${DOMAIN:?required}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?required}
+  LICENSE_HASH_SECRET: ${LICENSE_HASH_SECRET:?required}
+  LICENSE_ENCRYPTION_KEY: ${LICENSE_ENCRYPTION_KEY:?required}
+  AIHUB_GATEWAY_SECRET: ${AIHUB_GATEWAY_SECRET:?required}
+  SUB2API_URL: http://sub2api:8080
+  SUB2API_ADMIN_API_KEY: ${SUB2API_ADMIN_API_KEY:-}
+  SUB2API_LICENSE_USER_ID: ${SUB2API_LICENSE_USER_ID:-0}
+  PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-disabled}
+  SEPAY_WEBHOOK_SECRET: ${SEPAY_WEBHOOK_SECRET:-}
+  SEPAY_AUTH_MODE: ${SEPAY_AUTH_MODE:-hmac}
+  BANK_BIN: ${BANK_BIN:-}
+  BANK_ACCOUNT: ${BANK_ACCOUNT:-}
+  BANK_ACCOUNT_NAME: ${BANK_ACCOUNT_NAME:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  MAIL_FROM: ${MAIL_FROM:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  AIHUB_NPM_PACKAGE_NAME: ${AIHUB_NPM_PACKAGE_NAME:-}
+  AIHUB_NPM_PACKAGE_VERSION: ${AIHUB_NPM_PACKAGE_VERSION:-}
+  AIHUB_NPM_RELEASE_VERIFIED: ${AIHUB_NPM_RELEASE_VERIFIED:-false}
+services:
+  web:
+    build: {context: ../../web, target: web}
+    image: aihub-web:production
+    environment: *app-environment
+    restart: unless-stopped
+    volumes: ["uploads:/app/.data/uploads"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      aihub-cache: {condition: service_healthy}
+    networks: [default, sub2api]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+  worker:
+    build: {context: ../../web, target: worker}
+    image: aihub-worker:production
+    environment: *app-environment
+    restart: unless-stopped
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      aihub-cache: {condition: service_healthy}
+    networks: [default, sub2api]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+  migrate:
+    image: aihub-worker:production
+    environment:
+      <<: *app-environment
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+    command: ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node_modules/.bin/tsx prisma/seed.ts && node_modules/.bin/tsx scripts/seed-policies.ts"]
+    depends_on:
+      aihub-db: {condition: service_healthy}
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+  aihub-db:
+    image: postgres:18-alpine
+    environment: {POSTGRES_USER: aihub, POSTGRES_DB: aihub, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?required}"}
+    volumes: ["postgres:/var/lib/postgresql"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aihub -d aihub"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  aihub-cache:
+    image: redis:8-alpine
+    environment: {REDIS_PASSWORD: "${REDIS_PASSWORD:?required}"}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    volumes: ["redis:/data"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  ingress:
+    image: nginx:stable-alpine
+    ports: ["127.0.0.1:${AIHUB_PORT:-13000}:8080"]
+    volumes: ["./nginx.npm.conf:/etc/nginx/conf.d/default.conf:ro"]
+    networks:
+      default: {}
+      npm: {aliases: [aihub-ingress]}
+    restart: unless-stopped
+    depends_on:
+      web: {condition: service_healthy}
+    security_opt: [no-new-privileges:true]
+  backup:
+    image: postgres:18-alpine
+    environment:
+      AIHUB_DB_HOST: aihub-db
+      PGPASSWORD: ${POSTGRES_PASSWORD:?required}
+      SUB2API_POSTGRES_PASSWORD: ${SUB2API_POSTGRES_PASSWORD:?required}
+    volumes: ["./backup.sh:/backup.sh:ro", "./backups:/backups", "uploads:/uploads:ro"]
+    command: ["sh", "-c", "while true; do sh /backup.sh; sleep 86400; done"]
+    networks: [default, sub2api]
+    restart: unless-stopped
+    depends_on:
+      aihub-db: {condition: service_healthy}
+networks:
+  npm: {external: true, name: "${NPM_NETWORK:-npm_proxy}"}
+  sub2api: {external: true, name: "${SUB2API_NETWORK:-sub2api-deploy_sub2api-network}"}
+volumes:
+  postgres:
+  redis:
+  uploads:

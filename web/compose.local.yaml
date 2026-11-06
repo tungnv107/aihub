@@ -1,0 +1,26 @@
+name: aihub-platform-local
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: aihub
+      POSTGRES_DB: aihub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    ports: ["127.0.0.1:15432:5432"]
+    volumes: ["postgres:/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aihub -d aihub"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?required}", "--appendonly", "yes"]
+    ports: ["127.0.0.1:16379:6379"]
+    volumes: ["redis:/data"]
+  mailpit:
+    image: axllent/mailpit:v1.29
+    ports: ["127.0.0.1:1025:1025", "127.0.0.1:18025:8025"]
+volumes:
+  postgres:
+  redis:

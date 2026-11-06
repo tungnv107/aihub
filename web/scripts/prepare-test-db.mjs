@@ -1,0 +1,10 @@
+import 'dotenv/config';
+import pg from 'pg';
+import {spawnSync} from 'node:child_process';
+import path from 'node:path';
+const source=new URL(process.env.DATABASE_URL);if(!['127.0.0.1','localhost'].includes(source.hostname))throw Error('This helper only creates a local integration-test database');
+const target=new URL(source);target.pathname='/aihub_test';
+const admin=new URL(source);admin.pathname='/postgres';
+const client=new pg.Client({connectionString:admin.toString()});await client.connect();
+if(!(await client.query("SELECT 1 FROM pg_database WHERE datname = 'aihub_test'")).rowCount)await client.query('CREATE DATABASE aihub_test');await client.end();
+const result=spawnSync(process.execPath,[path.resolve('node_modules/prisma/build/index.js'),'migrate','deploy'],{env:{...process.env,DATABASE_URL:target.toString()},stdio:'inherit',windowsHide:true});process.exitCode=result.status??1;

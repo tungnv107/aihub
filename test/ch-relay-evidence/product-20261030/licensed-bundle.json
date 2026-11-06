@@ -1,0 +1,14 @@
+{
+  "result": "passed",
+  "at": "2026-10-30T05:49:38.961Z",
+  "app": "F:\\Tool\\gpt_signup_hybrid-main_1\\test\\relay-product-build-20261030-054818\\app",
+  "fixture": "F:\\Tool\\gpt_signup_hybrid-main_1\\test\\licensed-bundle-XBrkhD",
+  "licenseId": "4e114843-b5d8-4d7e-afd4-30cfcd435c40",
+  "activationId": "da274eab-1e58-481a-b272-80fd46e4ebf8",
+  "unlicensed_start_blocked": true,
+  "signed_activation": true,
+  "tamper_blocked": true,
+  "start_stop": true,
+  "config_roundtrip": true,
+  "inference_with_real_chatgpt": false
+}

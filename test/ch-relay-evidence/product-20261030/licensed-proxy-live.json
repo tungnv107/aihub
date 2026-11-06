@@ -1,0 +1,15 @@
+{
+  "result": "passed",
+  "at": "2026-10-30T05:59:17Z",
+  "version": "0.3.1",
+  "platform": "Linux ARM64",
+  "unactivated_start_blocked": true,
+  "signed_activation": true,
+  "models": true,
+  "real_inference": true,
+  "answer": "TDH_LICENSED_PROXY_OK",
+  "revocation_blocked": true,
+  "credential_handling": "Borrowed access token only; no refresh token copied; temporary database in tmpfs",
+  "production_modified": false,
+  "quota_equivalence_proven": false
+}

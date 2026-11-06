@@ -1,0 +1,22 @@
+{
+  "result": "passed",
+  "at": "2026-10-30T05:40:51.379Z",
+  "model": "gpt-6-astra",
+  "answer": "TDH_DESKTOP_LIVE_OK",
+  "policy": {
+    "revision": "4287bfe46f9e4a0c8e40c0a61e7986d1bb46a4639788a79db163674d1affe79a",
+    "generation": 2,
+    "mode": "enforce",
+    "enforced": true
+  },
+  "row": {
+    "model": "gpt-6-astra",
+    "status": 200,
+    "attempts": 1,
+    "policy_revision": "4287bfe46f9e4a0c8e40c0a61e7986d1bb46a4639788a79db163674d1affe79a",
+    "usage": null
+  },
+  "credential_handling": "Borrowed owner-managed access token in memory; no refresh or token transfer",
+  "platform": "Linux ARM64 Node 24.22.1",
+  "quota_parity_proven": false
+}

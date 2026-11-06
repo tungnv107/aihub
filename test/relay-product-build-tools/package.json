@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "esbuild": "0.25.12",
+    "javascript-obfuscator": "4.1.1"
+  }
+}

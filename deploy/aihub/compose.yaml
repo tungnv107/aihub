@@ -1,0 +1,156 @@
+name: aihub
+x-app-environment: &app-environment
+  NODE_ENV: production
+  DATABASE_URL: postgresql://aihub:${POSTGRES_PASSWORD:?required}@postgres:5432/aihub
+  REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379
+  BETTER_AUTH_URL: https://${DOMAIN:?required}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?required}
+  LICENSE_HASH_SECRET: ${LICENSE_HASH_SECRET:?required}
+  LICENSE_ENCRYPTION_KEY: ${LICENSE_ENCRYPTION_KEY:?required}
+  AIHUB_GATEWAY_SECRET: ${AIHUB_GATEWAY_SECRET:?required}
+  SUB2API_URL: http://sub2api:8080
+  SUB2API_ADMIN_API_KEY: ${SUB2API_ADMIN_API_KEY:-}
+  SUB2API_LICENSE_USER_ID: ${SUB2API_LICENSE_USER_ID:-0}
+  PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-disabled}
+  SEPAY_WEBHOOK_SECRET: ${SEPAY_WEBHOOK_SECRET:-}
+  SEPAY_AUTH_MODE: ${SEPAY_AUTH_MODE:-hmac}
+  BANK_BIN: ${BANK_BIN:-}
+  BANK_ACCOUNT: ${BANK_ACCOUNT:-}
+  BANK_ACCOUNT_NAME: ${BANK_ACCOUNT_NAME:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_SECURE: ${SMTP_SECURE:-true}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  MAIL_FROM: ${MAIL_FROM:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  AIHUB_NPM_PACKAGE_NAME: ${AIHUB_NPM_PACKAGE_NAME:-}
+  AIHUB_NPM_PACKAGE_VERSION: ${AIHUB_NPM_PACKAGE_VERSION:-}
+  AIHUB_NPM_RELEASE_VERIFIED: ${AIHUB_NPM_RELEASE_VERIFIED:-false}
+  BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+  BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+services:
+  web:
+    build: {context: ../../web, target: web}
+    environment: *app-environment
+    restart: unless-stopped
+    volumes: ["uploads:/app/.data/uploads"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    security_opt: [no-new-privileges:true]
+  worker:
+    build: {context: ../../web, target: worker}
+    environment: *app-environment
+    restart: unless-stopped
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    security_opt: [no-new-privileges:true]
+  migrate:
+    build: {context: ../../web, target: worker}
+    environment: *app-environment
+    command: ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node_modules/.bin/tsx prisma/seed.ts && node_modules/.bin/tsx scripts/seed-policies.ts"]
+    depends_on:
+      postgres: {condition: service_healthy}
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: aihub
+      POSTGRES_DB: aihub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    volumes: ["postgres:/var/lib/postgresql"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aihub -d aihub"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    environment: {REDIS_PASSWORD: "${REDIS_PASSWORD:?required}"}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    volumes: ["redis:/data"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  sub2api:
+    build: {context: ../../.reference/sub2api}
+    restart: unless-stopped
+    ports: ["127.0.0.1:18080:8080"]
+    environment:
+      AUTO_SETUP: "true"
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: "8080"
+      RUN_MODE: standard
+      CH_RELAY_LICENSE_ONLY: "true"
+      AIHUB_GATEWAY_SECRET: ${AIHUB_GATEWAY_SECRET:?required}
+      DATABASE_HOST: sub2api-postgres
+      DATABASE_PORT: "5432"
+      DATABASE_USER: sub2api
+      DATABASE_PASSWORD: ${SUB2API_POSTGRES_PASSWORD:?required}
+      DATABASE_DBNAME: sub2api
+      DATABASE_SSLMODE: disable
+      REDIS_HOST: sub2api-redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${SUB2API_REDIS_PASSWORD:?required}
+      JWT_SECRET: ${SUB2API_JWT_SECRET:?required}
+      TOTP_ENCRYPTION_KEY: ${SUB2API_TOTP_ENCRYPTION_KEY:?required}
+      ADMIN_EMAIL: ${SUB2API_ADMIN_EMAIL:?required}
+      ADMIN_PASSWORD: ${SUB2API_ADMIN_PASSWORD:?required}
+    volumes: ["sub2api-app:/app/data"]
+    depends_on:
+      sub2api-postgres: {condition: service_healthy}
+      sub2api-redis: {condition: service_healthy}
+  sub2api-postgres:
+    image: postgres:18-alpine
+    environment: {POSTGRES_USER: sub2api,POSTGRES_DB: sub2api,POSTGRES_PASSWORD: "${SUB2API_POSTGRES_PASSWORD:?required}"}
+    volumes: ["sub2api-postgres:/var/lib/postgresql"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sub2api -d sub2api"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  sub2api-redis:
+    image: redis:7-alpine
+    environment: {REDIS_PASSWORD: "${SUB2API_REDIS_PASSWORD:?required}"}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    volumes: ["sub2api-redis:/data"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  proxy:
+    image: caddy:2-alpine
+    environment: {DOMAIN: "${DOMAIN:?required}"}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro", "caddy-data:/data", "caddy-config:/config"]
+    restart: unless-stopped
+    depends_on: [web]
+  backup:
+    image: postgres:18-alpine
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?required}
+      SUB2API_POSTGRES_PASSWORD: ${SUB2API_POSTGRES_PASSWORD:?required}
+    volumes: ["./backup.sh:/backup.sh:ro", "./backups:/backups", "uploads:/uploads:ro"]
+    command: ["sh", "-c", "while true; do sh /backup.sh; sleep 86400; done"]
+    restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy}
+      sub2api-postgres: {condition: service_healthy}
+volumes:
+  postgres:
+  redis:
+  uploads:
+  sub2api-app:
+  sub2api-postgres:
+  sub2api-redis:
+  caddy-data:
+  caddy-config:

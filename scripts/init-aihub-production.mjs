@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {restrictSecretFile} from './secret-file.mjs';
+const [domain,email]=process.argv.slice(2);
+if(!/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i.test(domain??'')||!/^\S+@\S+\.\S+$/.test(email??''))throw Error('Usage: node scripts/init-aihub-production.mjs aihub.your-domain.com admin@your-domain.com');
+const root=path.resolve(import.meta.dirname,'..'),file=path.join(root,'deploy/aihub/.env');if(fs.existsSync(file))throw Error('Production .env exists; refusing to overwrite');
+let env=fs.readFileSync(path.join(root,'deploy/aihub/.env.example'),'utf8').replace(/^DOMAIN=.*$/m,'DOMAIN='+domain).replaceAll('admin@example.com',email);
+for(const key of ['POSTGRES_PASSWORD','REDIS_PASSWORD','BETTER_AUTH_SECRET','LICENSE_HASH_SECRET','LICENSE_ENCRYPTION_KEY','AIHUB_GATEWAY_SECRET','SUB2API_POSTGRES_PASSWORD','SUB2API_REDIS_PASSWORD','SUB2API_JWT_SECRET','SUB2API_TOTP_ENCRYPTION_KEY','SUB2API_ADMIN_PASSWORD','BOOTSTRAP_ADMIN_PASSWORD'])env=env.replace(new RegExp('^'+key+'=$','m'),key+'='+crypto.randomBytes(32).toString('hex'));
+fs.writeFileSync(file,env,{flag:'wx',mode:0o600});restrictSecretFile(file);console.log('Production environment template created with random secrets. Nothing has been deployed.');

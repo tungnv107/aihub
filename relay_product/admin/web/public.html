@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cài đặt TDH Relay · Codex cá nhân & Sub2API</title><link rel="stylesheet" href="/admin/assets/style.css"></head>
+<body><main class="public"><header><div class="brand">TDH Relay<span>Cài đặt & hỗ trợ</span></div><div class="actions"><a class="button primary" href="/portal">Trang khách hàng</a><a href="/admin">Quản trị</a></div></header>
+<div class="intro"><h1>Bắt đầu với đúng bản relay.</h1><p>Dùng Codex trên máy cá nhân hoặc kết nối relay với Sub2API trên server. Chọn hướng phù hợp bên dưới.</p></div>
+<div class="hint">Đã có key? <a href="/portal">Nhập key tại trang khách hàng</a> để xem thời hạn, thiết bị, thống kê và hướng dẫn cài đặt. Thời hạn chỉ bắt đầu khi thiết bị kích hoạt thành công lần đầu.</div>
+<nav class="tabs" aria-label="Chọn cách sử dụng"><a class="button primary" href="#desktop">Máy cá nhân / Codex</a><a class="button" href="#proxy">Server / Sub2API</a></nav>
+<section class="panel" id="desktop"><span class="install-kind">01 · Máy cá nhân</span><h2>Dùng relay cùng Codex</h2>
+<p>Bộ cài này cài <strong>TDH Relay</strong>, runtime đi kèm và cấu hình kết nối cho Codex. Bạn cần có ứng dụng Codex và tài khoản ChatGPT của mình.</p>
+<ol class="steps"><li><a href="https://developers.openai.com/codex/app/" target="_blank" rel="noopener">Cài ứng dụng Codex từ OpenAI</a> nếu máy chưa có.</li><li>Mở PowerShell trên Windows, chạy lệnh cài bên dưới.</li><li>Nhập key TDH Relay do quản trị viên cấp khi bộ cài hỏi.</li><li>Đóng/mở lại Codex. Đăng nhập ChatGPT nếu chưa đăng nhập, rồi sử dụng như bình thường.</li></ol>
+<h3>Windows · PowerShell</h3><pre class="code">irm "https://codex.tudonghoa.me/setup.ps1" | iex</pre>
+<div class="hint">Lệnh trên không cài ứng dụng Codex, không tạo tài khoản ChatGPT và không cài Sub2API. Key TDH kích hoạt relay; tài khoản ChatGPT vẫn là tài khoản riêng của bạn.</div>
+<details><summary>Cài trên macOS</summary><pre class="code">curl -fsSL "https://codex.tudonghoa.me/setup.sh" | bash</pre><p class="muted">Có bộ cài Intel và Apple Silicon; chưa kiểm thử cài/gỡ trên máy Mac thật.</p></details>
+<details class="section-gap"><summary>Gỡ relay và khôi phục cấu hình</summary><h3 class="section-gap">Windows</h3><pre class="code">irm "https://codex.tudonghoa.me/setup.ps1?remove=1" | iex</pre><h3>macOS</h3><pre class="code">curl -fsSL "https://codex.tudonghoa.me/setup.sh?remove=1" | bash</pre><p>Gỡ relay không xóa tài khoản ChatGPT. Dữ liệu chẩn đoán và bản sao cấu hình được giữ lại.</p></details>
+<p class="section-gap"><a href="/README.md">Tài liệu desktop đầy đủ</a> · <a href="/manifest.json">Phiên bản & checksum</a></p>
+</section>
+<section class="panel" id="proxy"><span class="install-kind">02 · Server / Docker</span><h2>Kết nối relay với Sub2API</h2>
+<p>Triển khai gói proxy trên server, kích hoạt key, cấu hình tài khoản upstream và caller API key; sau đó thêm địa chỉ relay vào Sub2API.</p>
+<ol class="steps"><li>Tải gói relay theo manifest và kiểm tra checksum.</li><li>Khởi tạo proxy, kích hoạt license rồi chạy Docker Compose theo tài liệu.</li><li>Nhập tài khoản/phiên dành riêng cho proxy.</li><li>Khai báo base URL và caller key trong kênh Sub2API.</li></ol>
+<div class="hint">Luồng này tách riêng khỏi bộ cài PowerShell cho Codex cá nhân. Cấp thêm thiết bị cho license nếu bạn dùng cả hai nơi.</div>
+<a class="button primary" href="/PROXY.md">Hướng dẫn triển khai Sub2API</a>
+</section>
+<section class="panel" id="support"><h2>Khi cần hỗ trợ</h2><p>Kiểm tra key còn hạn và đúng số máy. Nếu gặp lỗi đăng nhập ChatGPT, hãy đăng nhập lại trong Codex.</p>
+<h3>Xuất báo cáo trên Windows</h3><pre class="code">irm "https://codex.tudonghoa.me/diagnose.ps1" | iex</pre>
+<p>Công cụ tạo file JSON trên Desktop, chỉ gồm phiên bản, số request, mã trạng thái, số lần thử và thời gian xử lý. Không tự gửi file; bạn có thể xem trước rồi tải lên mục Thống kê tại trang khách hàng.</p></section>
+<footer>TDH Relay · Relay desktop chạy trên máy của bạn. Kích hoạt và gia hạn license cần kết nối server. Hiệu quả quota chưa được chứng minh tương đương tuyệt đối relay tham chiếu.</footer>
+</main></body></html>

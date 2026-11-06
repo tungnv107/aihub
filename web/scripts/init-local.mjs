@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {restrictSecretFile} from '../../scripts/secret-file.mjs';
+const root=path.resolve(import.meta.dirname,'..'),file=path.join(root,'.env');
+if(fs.existsSync(file))throw Error('.env already exists; refusing to replace secrets');
+const random=()=>crypto.randomBytes(32).toString('hex');
+let env=fs.readFileSync(path.join(root,'.env.example'),'utf8');
+const db=random(),redis=random();
+env=env.replace('postgresql://aihub:CHANGE_ME','postgresql://aihub:'+db).replace('POSTGRES_PASSWORD=CHANGE_ME','POSTGRES_PASSWORD='+db).replace('REDIS_PASSWORD=CHANGE_ME','REDIS_PASSWORD='+redis).replace('redis://:CHANGE_ME','redis://:'+redis).replace(/GENERATE_RANDOM_32_BYTES_HEX|GENERATE_RANDOM_32_BYTES/g,random);
+env=env.replace('PAYMENT_PROVIDER=disabled','PAYMENT_PROVIDER=sandbox').replace('BOOTSTRAP_ADMIN_EMAIL=','BOOTSTRAP_ADMIN_EMAIL=admin@aihub.local').replace('BOOTSTRAP_ADMIN_PASSWORD=','BOOTSTRAP_ADMIN_PASSWORD='+random());
+fs.writeFileSync(file,env,{mode:0o600,flag:'wx'});restrictSecretFile(file);
+console.log('Local .env created with random secrets. Credentials are in web/.env; do not commit or share it.');

@@ -1,0 +1,135 @@
+# TDH Relay - Windows installer. No product key or ChatGPT token in this command.
+& {
+    $ErrorActionPreference = 'Stop'
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $Version = '@@VERSION@@'
+    $Base = 'https://codex.tudonghoa.me'
+    $Root = if ($env:TDH_RELAY_HOME) { [IO.Path]::GetFullPath($env:TDH_RELAY_HOME) } else { Join-Path $env:LOCALAPPDATA 'TDHRelay' }
+    $CodexDir = if ($env:TDH_CODEX_HOME) { $env:TDH_CODEX_HOME } elseif ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
+    if ($Root -eq [IO.Path]::GetPathRoot($Root) -or $Root -eq $env:USERPROFILE -or $Root -eq [IO.Path]::GetFullPath($CodexDir)) { throw 'Unsafe installation directory.' }
+    $Marker = Join-Path $Root 'product.id'
+    if (Test-Path -LiteralPath $Root) {
+        if ((Get-Item -LiteralPath $Root).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Installation directory cannot be a symlink.' }
+        if ((Get-ChildItem -LiteralPath $Root -Force | Measure-Object).Count -gt 0 -and (-not (Test-Path -LiteralPath $Marker) -or [IO.File]::ReadAllText($Marker).Trim() -ne 'tdh-relay')) { throw 'Directory belongs to another application.' }
+    } else { New-Item -ItemType Directory -Path $Root | Out-Null }
+    [IO.File]::WriteAllText($Marker, 'tdh-relay')
+    $Sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    & icacls.exe $Root /inheritance:r /grant:r ('*' + $Sid + ':(OI)(CI)F') '*S-1-5-18:(OI)(CI)F' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot secure the installation directory.' }
+    $Stage = Join-Path $Root ('stage-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $Stage | Out-Null
+    $App = Join-Path $Root 'app'
+    $Node = Join-Path $Root 'runtime/node.exe'
+    $Cli = Join-Path $App 'relay_product/cli.mjs'
+    $OldApp = $null
+    $Installed = $false
+    $SyncCompleted = $false
+    function Invoke-TdhCli {
+        param([string[]]$CommandArgs)
+        $Result = & $Node $Cli @CommandArgs --home $Root
+        if ($LASTEXITCODE -ne 0) { throw ('TDH Relay command failed: ' + ($CommandArgs -join ' ')) }
+        $Result
+    }
+    function Download-Verified {
+        param([string]$Url,[string]$Destination,[string]$Expected)
+        if (-not $Url.StartsWith('https://')) { throw 'HTTPS is required.' }
+        Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Destination -TimeoutSec 240
+        if ((Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Expected) { throw 'Download checksum mismatch.' }
+    }
+    try {
+        Write-Host 'TDH Relay cho Codex tren may ca nhan. Lenh nay khong cai ung dung Codex hoac Sub2API.'
+        Write-Host 'Can ung dung Codex + tai khoan ChatGPT cua ban + key kich hoat TDH Relay.'
+        Write-Host ('Downloading TDH Relay ' + $Version + '...')
+        $Archive = Join-Path $Stage 'tdh-relay.zip'
+        Download-Verified ($Base + '/releases/' + $Version + '/tdh-relay.zip') $Archive '@@ZIP_SHA@@'
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $Zip = [IO.Compression.ZipFile]::OpenRead($Archive)
+        try {
+            foreach ($Entry in $Zip.Entries) {
+                if ($Entry.FullName -match '(^[/\\]|(^|[/\\])\.\.([/\\]|$)|:)') { throw 'Unsafe archive path.' }
+            }
+        } finally { $Zip.Dispose() }
+        $Unpacked = Join-Path $Stage 'app'
+        Expand-Archive -LiteralPath $Archive -DestinationPath $Unpacked
+        if (-not (Test-Path -LiteralPath (Join-Path $Unpacked 'relay_product/cli.mjs'))) { throw 'Incomplete release archive.' }
+        $Arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'ARM64') { 'arm64' } else { 'x64' }
+        $NodeHash = if ($Arch -eq 'arm64') { '@@WIN_ARM64_SHA@@' } else { '@@WIN_X64_SHA@@' }
+        if (-not (Test-Path -LiteralPath $Node) -or (Get-FileHash -LiteralPath $Node -Algorithm SHA256).Hash.ToLowerInvariant() -ne $NodeHash) {
+            $NewNode = Join-Path $Stage 'node.exe'
+            Download-Verified ('https://nodejs.org/dist/v@@NODE_VERSION@@/win-' + $Arch + '/node.exe') $NewNode $NodeHash
+            if (Test-Path -LiteralPath $Cli) { Invoke-TdhCli -CommandArgs @('stop') | Out-Null }
+            New-Item -ItemType Directory -Path (Split-Path $Node) -Force | Out-Null
+            Copy-Item -LiteralPath $NewNode -Destination $Node -Force
+        }
+        if ((& $Node --version) -ne 'v@@NODE_VERSION@@') { throw 'Unexpected Node runtime version.' }
+        if (Test-Path -LiteralPath $Cli) { Invoke-TdhCli -CommandArgs @('stop') | Out-Null }
+        if (Test-Path -LiteralPath $App) {
+            $OldApp = Join-Path $Root ('backup-app-' + [Guid]::NewGuid().ToString('N'))
+            Move-Item -LiteralPath $App -Destination $OldApp
+        }
+        Move-Item -LiteralPath $Unpacked -Destination $App
+        Invoke-TdhCli -CommandArgs @('init','--codex-home',$CodexDir) | Out-Null
+        $LicenseReady = $false
+        try { Invoke-TdhCli -CommandArgs @('license') | Out-Null; $LicenseReady = $true } catch {}
+        if (-not $LicenseReady) {
+            $SecureKey = Read-Host 'Nhap key kich hoat TDH Relay' -AsSecureString
+            $Pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureKey)
+            try {
+                [Runtime.InteropServices.Marshal]::PtrToStringBSTR($Pointer) | & $Node $Cli activate --home $Root
+                if ($LASTEXITCODE -ne 0) { throw 'Activation failed. Check the key, device limit and expiry.' }
+            } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($Pointer); $SecureKey.Dispose() }
+        }
+        Invoke-TdhCli -CommandArgs @('sync') | Out-Null
+        $SyncCompleted = $true
+        Invoke-TdhCli -CommandArgs @('start') | Out-Null
+        if ($env:TDH_RELAY_NO_AUTOSTART -ne '1') {
+            $Startup = [Environment]::GetFolderPath('Startup')
+            $Vbs = Join-Path $Startup 'TDH Relay.vbs'
+            if (Test-Path -LiteralPath $Vbs) {
+                $ExistingStartup = [IO.File]::ReadAllText($Vbs)
+                if (-not $ExistingStartup.Contains("' TDH Relay managed startup") -or -not $ExistingStartup.Contains($Root.Replace('"','""'))) { throw 'Startup file belongs to another installation.' }
+            }
+            $Launch = '"' + $Node + '" "' + $Cli + '" start --home "' + $Root + '"'
+            $Content = "' TDH Relay managed startup`r`nCreateObject(""WScript.Shell"").Run """ + $Launch.Replace('"','""') + """, 0, False`r`n"
+            [IO.File]::WriteAllText($Vbs,$Content,[Text.Encoding]::Unicode)
+        }
+        $Installed = $true
+        Invoke-TdhCli -CommandArgs @('status')
+        Write-Host 'Da cai TDH Relay. Dong/mo lai ung dung Codex da co tren may.'
+        Write-Host 'Dang nhap ChatGPT trong Codex neu chua dang nhap. Key TDH khong thay the tai khoan ChatGPT.'
+        Write-Host ('Trang khach hang: ' + $Base + '/portal - xem key, thiet bi, thong ke va huong dan.')
+        $PortalShortcut = Join-Path $Root 'TDH Relay - Trang khach hang.url'
+        Set-Content -LiteralPath $PortalShortcut -Value ("[InternetShortcut]`r`nURL=" + $Base + "/portal`r`n") -Encoding ASCII
+        Write-Host ('Mo giao dien web bang shortcut: ' + $PortalShortcut)
+        Write-Host ('Uninstall: irm "' + $Base + '/setup.ps1?remove=1" | iex')
+    } catch {
+        $ConfigurationRestored = $false
+        if ((Test-Path -LiteralPath $Node) -and (Test-Path -LiteralPath $Cli)) {
+            try { Invoke-TdhCli -CommandArgs @('stop') | Out-Null } catch { Write-Warning 'Could not stop the relay; check local status.' }
+            if ($SyncCompleted) {
+                try { Invoke-TdhCli -CommandArgs @('unsync') | Out-Null; $ConfigurationRestored = $true } catch { Write-Warning 'Review the local backup before retrying.' }
+            }
+        }
+        if ($OldApp -and (Test-Path -LiteralPath $OldApp)) {
+            $Failed = Join-Path $Root ('failed-app-' + [Guid]::NewGuid().ToString('N'))
+            if (Test-Path -LiteralPath $App) { Move-Item -LiteralPath $App -Destination $Failed }
+            Move-Item -LiteralPath $OldApp -Destination $App
+            try {
+                if ($ConfigurationRestored) { Invoke-TdhCli -CommandArgs @('sync') | Out-Null }
+                Invoke-TdhCli -CommandArgs @('start') | Out-Null
+            } catch { Write-Warning 'Previous version restored; check local status.' }
+        }
+        throw
+    } finally {
+        # All deletion targets were created inside the checked product root.
+        if ($Installed) {
+            foreach ($Owned in @($Stage,$OldApp)) {
+                if ($Owned -and (Test-Path -LiteralPath $Owned)) {
+                    $Resolved = (Resolve-Path -LiteralPath $Owned).Path
+                    if (-not $Resolved.StartsWith($Root.TrimEnd('\') + '\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Cleanup escaped installation directory.' }
+                    Remove-Item -LiteralPath $Resolved -Recurse -Force
+                }
+            }
+        }
+    }
+}

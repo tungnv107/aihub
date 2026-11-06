@@ -1,0 +1,63 @@
+{
+  "result": "passed",
+  "at": "2026-10-30T06:16:32.291773+00:00",
+  "version": "0.3.1",
+  "domain": "https://codex.tudonghoa.me",
+  "tls_verified": true,
+  "egress": "curl direct HTTPS using public DNS; ambient machine proxy disabled for verification",
+  "release_zip_hash_verified": true,
+  "customer_files": [
+    "relay_product/cli.mjs",
+    "relay_product/device.ps1",
+    "relay_product/proxy-admin.mjs",
+    "relay_product/proxy-init.mjs",
+    "relay_product/proxy-server.mjs",
+    "relay_product/deploy/compose.yaml",
+    "relay_product/deploy/Dockerfile",
+    "release.signed.json"
+  ],
+  "paths": {
+    "/setup.ps1": {
+      "status": 200,
+      "sha256": "4a4eed30af275a7590c9c59b754af9b700d6b2e35fbdea2d6abf43cf2247c402"
+    },
+    "/setup.sh": {
+      "status": 200,
+      "sha256": "1c3bf124b599da2058d91667e5e5844c3b07aa29a1c3e01e2de434fe6871b5fb"
+    },
+    "/setup.ps1?remove=1": {
+      "status": 200,
+      "sha256": "48837b5519b90331bf413f63fa223dc45a6b45b2a24285f3776ef04465e17e8f"
+    },
+    "/setup.sh?remove=1": {
+      "status": 200,
+      "sha256": "49a18c02a74effc31bc1a75610b24f9d382ee9446570f93aab32baf0a9b59d67"
+    },
+    "/README.md": {
+      "status": 200,
+      "sha256": "4a2075a197683dbfec75f38b0074ed38c817cc7def1215d9780df6686808b9fe"
+    },
+    "/PROXY.md": {
+      "status": 200,
+      "sha256": "c86a6dac3cf6ef73d062afbf31ec54fbefafe70238827d556d3f3ebc491acee4"
+    },
+    "/releases/0.2.0/tdh-relay.zip": {
+      "status": 404
+    },
+    "/releases/0.2.0/tdh-relay.tar.gz": {
+      "status": 404
+    },
+    "/LICENSE-ADMIN.md": {
+      "status": 404
+    },
+    "/license-admin.mjs": {
+      "status": 404
+    },
+    "/license-server.mjs": {
+      "status": 404
+    },
+    "/TECHNICAL.md": {
+      "status": 404
+    }
+  }
+}

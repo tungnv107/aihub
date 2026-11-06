@@ -1,0 +1,44 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+const require=createRequire(path.join(process.env.TDH_TEST_PACKAGES??'C:/Users/DELL/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules','playwright/package.json'));
+const {chromium}=require('playwright');
+const credentials=JSON.parse(fs.readFileSync(path.join(process.env.LOCALAPPDATA,'TDHRelayOwner/admin-login.json'),'utf8'));
+const browser=await chromium.launch({headless:true,executablePath:process.env.TDH_TEST_BROWSER??'C:/Program Files/Google/Chrome/Application/chrome.exe'});
+const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),pageErrors=[];
+page.on('pageerror',error=>pageErrors.push(error.message));
+const output=path.resolve('artifacts/admin-ui');fs.mkdirSync(output,{recursive:true});
+try{
+  const root=await page.goto('https://codex.tudonghoa.me/');
+  assert.equal(root.status(),200);
+  await page.getByRole('heading',{name:'Bắt đầu với đúng bản relay.'}).waitFor();
+  await page.screenshot({path:path.join(output,'public-live-desktop.png'),fullPage:true});
+  await page.setViewportSize({width:375,height:900});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.screenshot({path:path.join(output,'public-live-mobile.png'),fullPage:true});
+  await page.setViewportSize({width:1440,height:1000});
+  await page.goto(credentials.url);
+  await page.getByRole('heading',{name:'Đăng nhập quản trị'}).waitFor();
+  await page.screenshot({path:path.join(output,'login-live.png'),fullPage:true});
+  await page.getByLabel('Tên đăng nhập').fill(credentials.username);
+  await page.getByLabel('Mật khẩu',{exact:true}).fill(credentials.password);
+  await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();
+  await page.getByRole('heading',{name:'Đổi mật khẩu lần đầu'}).waitFor();
+  const cookie=(await context.cookies()).find(c=>c.name==='__Host-tdh-admin');
+  assert.ok(cookie?.secure&&cookie.httpOnly&&cookie.sameSite==='Strict');
+  assert.equal((await context.request.get('https://codex.tudonghoa.me/admin/api/overview')).status(),403);
+  await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();
+  await page.getByRole('heading',{name:'Đăng nhập quản trị'}).waitFor();
+  assert.equal((await context.request.get('https://codex.tudonghoa.me/admin/api/session')).status(),401);
+  const diagnostic=await (await fetch('https://codex.tudonghoa.me/diagnose.mjs')).text();
+  const installer=await (await fetch('https://codex.tudonghoa.me/diagnose.ps1')).text();
+  const hash=crypto.createHash('sha256').update(diagnostic).digest('hex');
+  assert.ok(installer.includes(hash));assert.ok(!installer.includes('@@'));
+  assert.ok((await (await fetch('https://codex.tudonghoa.me/setup.ps1')).text()).includes('Khong cai ung dung Codex hoac Sub2API'));
+  assert.equal(pageErrors.length,0);
+  const result={passed:true,https:true,adminLogin:true,initialPasswordChangeRequired:true,secureCookie:true,logoutInvalidatesSession:true,
+    publicPageResponsive:true,diagnosticChecksumVerified:true,clientReleaseUnchanged:'0.3.1',screenshots:output,pageErrors};
+  fs.writeFileSync('artifacts/admin-live-results.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));
+}finally{await browser.close();}
