@@ -5,6 +5,7 @@ import { env, localSandbox } from "./env";
 import { fail, safeEqual, digest } from "./security";
 import type { Actor } from "./auth";
 import { paymentConfiguration, paymentForOrder } from "./payments";
+import { queueOrderNotification } from "./telegram";
 export const checkoutSchema = z.object({
   planId: z.string().min(1),
   billingName: z.string().trim().min(2).max(120),
@@ -37,7 +38,7 @@ export async function checkout(
       if (license.maxDevices !== plan.maxDevices)
         fail(409, "renewal_device_limit_mismatch");
     }
-    return tx.order.create({
+    const order = await tx.order.create({
       data: {
         code: "AH" + randomBytes(8).toString("hex").toUpperCase(),
         userId: user.id,
@@ -59,6 +60,8 @@ export async function checkout(
       },
       include: { items: true },
     });
+    await queueOrderNotification(tx, order.id);
+    return order;
   });
 }
 export async function verifyWebhook(

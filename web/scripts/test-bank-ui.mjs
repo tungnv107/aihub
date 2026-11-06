@@ -52,6 +52,8 @@ const env = {
   BETTER_AUTH_URL: "http://127.0.0.1:3107",
   PAYMENT_PROVIDER: "disabled",
   SEPAY_WEBHOOK_SECRET: "",
+  TELEGRAM_BOT_TOKEN: "",
+  TELEGRAM_CHAT_ID: "",
   NODE_ENV: "development",
 };
 const log = fs.openSync(path.join(root, ".runtime/bank-ui-server.log"), "w");
@@ -110,7 +112,7 @@ try {
   if (!ready) throw Error("test_server_not_ready");
   await run(path.join(web, "node_modules/@playwright/test/cli.js"), [
     "test",
-    "tests/e2e/bank-payment.spec.ts",
+    process.argv[2] ?? "tests/e2e/bank-payment.spec.ts",
   ]);
 } finally {
   if (server?.pid) {

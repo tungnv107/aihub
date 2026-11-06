@@ -6,6 +6,7 @@ import { env } from "@/server/env";
 import { adminPaymentConfiguration } from "@/server/payments";
 import { Admin } from "@/components/admin";
 import { jsonSafe } from "@/lib/api";
+import { telegramConfigured } from "@/server/telegram";
 export default async function Page({
   params,
   searchParams,
@@ -72,6 +73,7 @@ export default async function Page({
             null,
           payment: await adminPaymentConfiguration(),
           emailConfigured: !!env.SMTP_HOST,
+          telegramConfigured: telegramConfigured(),
           sub2apiConfigured:
             !!env.SUB2API_ADMIN_API_KEY || !!env.SUB2API_ADMIN_TOKEN,
           releaseVerified: env.AIHUB_NPM_RELEASE_VERIFIED === "true",

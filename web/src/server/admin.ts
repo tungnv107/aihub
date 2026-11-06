@@ -2,6 +2,7 @@ import { z } from "zod";
 import { serial } from "./db";
 import { fail } from "./security";
 import type { Actor } from "./auth";
+import { telegramContactSchema } from "@/lib/contact";
 export const planSchema = z.object({
   slug: z.string().regex(/^[a-z0-9-]{2,80}$/),
   name: z.string().trim().min(2).max(80),
@@ -158,6 +159,7 @@ export const siteSchema = z.object({
   headline: z.string().min(5).max(160),
   description: z.string().min(5).max(500),
   contactEmail: z.email(),
+  contactTelegram: telegramContactSchema.default(""),
   supportHours: z.string().max(150),
   seoTitle: z.string().max(100),
   seoDescription: z.string().max(200),

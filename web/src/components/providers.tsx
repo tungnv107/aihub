@@ -9,6 +9,7 @@ type Branding = {
   name: string;
   logoUrl: string | null;
   contactEmail?: string;
+  contactTelegram?: string;
   supportHours?: string;
   maintenanceMode?: boolean;
 };

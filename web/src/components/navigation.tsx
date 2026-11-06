@@ -166,6 +166,15 @@ export function Footer() {
         {brand.contactEmail && (
           <a href={"mailto:" + brand.contactEmail}>{brand.contactEmail}</a>
         )}
+        {brand.contactTelegram && (
+          <a
+            href={brand.contactTelegram}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Telegram: @{brand.contactTelegram.split("/").at(-1)}
+          </a>
+        )}
         {brand.supportHours && <small>{brand.supportHours}</small>}
       </div>
       <div>

@@ -26,6 +26,14 @@ const schema = z.object({
   SMTP_USER: z.string().default(""),
   SMTP_PASSWORD: z.string().default(""),
   MAIL_FROM: z.string().default(""),
+  TELEGRAM_BOT_TOKEN: z
+    .string()
+    .regex(/^(?:\d{5,20}:[A-Za-z0-9_-]{20,100})?$/)
+    .default(""),
+  TELEGRAM_CHAT_ID: z
+    .string()
+    .regex(/^(?:-?[1-9]\d{0,19})?$/)
+    .default(""),
   GOOGLE_CLIENT_ID: z.string().default(""),
   GOOGLE_CLIENT_SECRET: z.string().default(""),
   AIHUB_NPM_PACKAGE_NAME: z.string().default(""),

@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { WorkspaceShell } from "./navigation";
 import { PageHeading, Button, Field, Status, Confirm } from "./ui";
 import { DataTable } from "./data-table";
-import { useText } from "./providers";
+import { useText, useBranding } from "./providers";
 import { api, date, errorMessage } from "@/lib/api";
 import type { CustomerData, Wire } from "@/lib/types";
 import type { getTicket } from "@/server/support";
@@ -32,6 +32,7 @@ export function Support({
   ticket?: Ticket;
 }) {
   const t = useText(),
+    brand = useBranding(),
     locale = useLocale(),
     router = useRouter(),
     [busy, setBusy] = useState(false),
@@ -118,6 +119,19 @@ export function Support({
   }
   return (
     <WorkspaceShell user={user}>
+      {brand.contactTelegram && (
+        <div className="notice" style={{ marginBottom: 20 }}>
+          <Send size={18} />
+          <a
+            href={brand.contactTelegram}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t("Liên hệ hỗ trợ qua Telegram", "Contact support on Telegram")}: @
+            {brand.contactTelegram.split("/").at(-1)}
+          </a>
+        </div>
+      )}
       <PageHeading
         eyebrow="WE'RE HERE TO HELP"
         title={

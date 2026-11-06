@@ -7,6 +7,7 @@ import { provisionOrder } from "./provision";
 import { upstreamRevoke } from "./licenses";
 import { sendMail } from "./mail";
 import { logger } from "./logger";
+import { sendOrderNotification, TelegramDeliveryError } from "./telegram";
 const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const queue = new Queue("aihub-jobs", { connection });
 const worker = new Worker(
@@ -19,6 +20,8 @@ const worker = new Worker(
     const data = job.payload as Record<string, string>;
     try {
       if (job.type === "PROVISION") await provisionOrder(data.orderId);
+      else if (job.type === "TELEGRAM_ORDER")
+        await sendOrderNotification(data.orderId);
       else if (job.type === "REVOKE") await upstreamRevoke(data.licenseId);
       else if (job.type === "MAIL") {
         const user = await db.user.findUniqueOrThrow({
@@ -41,7 +44,12 @@ const worker = new Worker(
           status: "PENDING",
           availableAt: new Date(
             Date.now() +
-              Math.min(3600000, 30000 * 2 ** Math.min(job.attempts, 7)),
+              Math.max(
+                Math.min(3600000, 30000 * 2 ** Math.min(job.attempts, 7)),
+                error instanceof TelegramDeliveryError
+                  ? error.retryAfterSeconds * 1000
+                  : 0,
+              ),
           ),
         },
       });

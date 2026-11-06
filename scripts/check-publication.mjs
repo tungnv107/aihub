@@ -8,6 +8,7 @@ const patterns = {
   private_key: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g,
   github_token: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,
   npm_token: /\bnpm_[A-Za-z0-9]{30,}\b/g,
+  telegram_token: /\b\d{8,20}:[A-Za-z0-9_-]{30,100}\b/g,
   api_token: /\bsk-(?:proj-)?[A-Za-z0-9_-]{24,}\b/g,
   activation_key: /\bTDH-[A-Za-z0-9_-]{32}\b/g,
   jwt_literal: /\beyJ[A-Za-z0-9_-]{20,}\.eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b/g,

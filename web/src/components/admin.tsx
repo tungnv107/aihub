@@ -254,6 +254,10 @@ const fields: Record<string, FieldSpec[]> = {
       required: true,
     },
     {
+      name: "contactTelegram",
+      label: "Telegram hỗ trợ (https://t.me/username) / Support Telegram",
+    },
+    {
       name: "headline",
       label: "Tiêu đề landing / Landing headline",
       full: true,
@@ -529,6 +533,7 @@ export function Admin({
     site: Record<string, unknown> | null;
     payment: AdminPaymentSettings;
     emailConfigured: boolean;
+    telegramConfigured: boolean;
     sub2apiConfigured: boolean;
     releaseVerified: boolean;
   };
@@ -1194,6 +1199,11 @@ export function Admin({
                   : configuration.payment.provider,
               ],
               [t("Email", "Email"), configuration.emailConfigured, "SMTP"],
+              [
+                "Telegram",
+                configuration.telegramConfigured,
+                t("Thông báo đơn hàng mới", "New order notifications"),
+              ],
               ["Sub2API", configuration.sub2apiConfigured, "License authority"],
               [
                 "npm",

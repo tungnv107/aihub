@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { telegramContact } from "@/lib/contact";
 export async function branding() {
   const [site, logo, favicon] = await Promise.all([
     db.setting.findUnique({ where: { key: "site" } }),
@@ -12,6 +13,7 @@ export async function branding() {
     headline: value?.headline,
     description: value?.description,
     contactEmail: value?.contactEmail,
+    contactTelegram: telegramContact(value?.contactTelegram),
     supportHours: value?.supportHours,
     maintenanceMode: value?.maintenanceMode === true,
     seoTitle: value?.seoTitle,
