@@ -18,3 +18,11 @@ Mỗi đơn lưu riêng ngân hàng nhận tiền; sửa cấu hình chỉ tác 
 - Backup AIHub/Sub2API/uploads tại server: `20261106T082202Z`.
 - Giữ image rollback `aihub-web:before-bank-settings`, `aihub-worker:before-bank-settings`.
 - Migration chỉ thêm cột `Order.paymentInstructions` JSONB nullable. Không sửa/xóa đơn hoặc tài khoản có sẵn. Không thay đổi Sub2API trong đợt cập nhật này.
+
+## Đã triển khai và nghiệm thu
+
+- Commit chức năng: `5ac7225`, đã push `main`, server pull fast-forward rồi build web/worker ARM64. [CI GitHub](https://github.com/tungnv107/aihub/actions/runs/42187913225) đạt cả platform và CLI.
+- Migration thành công; web healthy, worker khởi động; restart ingress hoàn tất. `https://aihub.tungnv.com/api/v1/health` và `https://sub2api.tungnv.com/` trả 200. AIHub HTTPS hiện hoạt động qua NPM.
+- Đăng nhập Admin qua HTTPS thật, mở `/admin/settings` xác nhận đầy đủ form ngân hàng. API cấu hình chặn truy cập chưa đăng nhập (401). SePay chưa bật và webhook trả 404.
+- Không điền tài khoản ngân hàng thử trên production; tài khoản vẫn trống, checkout chưa bật. Chủ hệ thống nhập tài khoản thật, xác nhận quyền hiển thị và bật **Mở mua gói bằng chuyển khoản ngân hàng** rồi lưu để mở bán.
+- Các database thử thanh toán cục bộ đã được xóa. Không phát sinh giao dịch tiền thật trong quá trình kiểm chứng.
